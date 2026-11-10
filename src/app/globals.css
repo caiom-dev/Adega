@@ -1,26 +1,326 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Design system da Adega do Pezão.
+ * Preto, branco e o âmbar da logo. Superfícies neutras, um único destaque.
+ * O vidro fica nas barras, botões e janelas; o conteúdo fica em superfícies opacas.
+ */
+@theme {
+  /* Rampa neutra (grafite quase preto) */
+  --color-canvas: #0a0a0b;
+  --color-surface: #151516;
+  --color-sunk: #1f1f21;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.16);
+  --color-ink: #f4f4f5;
+  --color-body: #a1a1a6;
+  --color-muted: #85858b;
+
+  /* Destaque: âmbar do degradê da logo */
+  --color-accent: #ffa31a;
+  --color-accent-ink: #1c1200;
+  --color-accent-soft: rgb(255 163 26 / 0.14);
+
+  /* Cores de significado, apagadas para caber na paleta */
+  --color-green-soft: rgb(76 195 138 / 0.14);
+  --color-green-ink: #6ad3a0;
+  --color-red-soft: rgb(229 72 77 / 0.16);
+  --color-red-ink: #ff8f93;
+  --color-yellow-soft: rgb(255 163 26 / 0.14);
+  --color-yellow-ink: #ffbe5c;
+  --color-blue-soft: rgb(255 163 26 / 0.14);
+  --color-blue-ink: #ffbe5c;
+
+  /* Uma curva para tudo, e uma mola suave para o que desliza (aba, seletor, janela) */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-mola: linear(
+    0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%,
+    0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.9%, 1
+  );
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* No iPhone e no Mac usa a San Francisco do sistema; nos outros, Geist. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  background: var(--color-canvas);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-body);
+  font-family: var(--font-sans);
+  line-height: 1.45;
+  /* PWA: sem "puxar para atualizar" e sem o elástico que mexe a tela inteira. */
+  overscroll-behavior: none;
+}
+
+/* Botões não selecionam texto nem abrem menu de toque longo no celular. */
+button,
+a {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+/* Na camada base, para os campos poderem trocar o contorno pelo próprio anel de foco. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* iOS dá zoom em campo com fonte menor que 16px. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+.pt-seguro {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-seguro {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.sem-barra {
+  scrollbar-width: none;
+}
+.sem-barra::-webkit-scrollbar {
+  display: none;
+}
+
+/* ───────────── Vidro ─────────────
+ * .vidro        vidro de verdade: desfoca o que passa por trás. Só em barras, janelas e
+ *               elementos flutuantes, porque cada camada de desfoque custa quadros.
+ * .vidro-leve   mesmo acabamento sem desfoque, para botões dentro do conteúdo.
+ * [data-luz]    liga o reflexo que acompanha o ponteiro (ver LuzVidro.tsx).
+ */
+/* Dentro da camada de componentes, para as utilidades do Tailwind poderem sobrescrever. */
+@layer components {
+  :where(.vidro, .vidro-leve, .vidro-ambar) {
+    /* :where() tem especificidade zero: fixed, absolute e sticky do Tailwind continuam valendo. */
+    position: relative;
+  }
+
+  .vidro,
+  .vidro-leve,
+  .vidro-ambar {
+    isolation: isolate;
+    border: 0;
+    /* Borda de luz: mais clara em cima, quase nada embaixo, como um vidro iluminado de cima. */
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 0 0 1px rgb(255 255 255 / 0.07),
+      inset 0 -1px 0 rgb(0 0 0 / 0.3);
+  }
+
+  .vidro {
+    background: linear-gradient(rgb(44 44 47 / 0.62), rgb(26 26 28 / 0.62));
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+  }
+
+  .vidro-flutua {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 0 0 1px rgb(255 255 255 / 0.07),
+      inset 0 -1px 0 rgb(0 0 0 / 0.3),
+      0 12px 32px rgb(0 0 0 / 0.45);
+  }
+
+  .vidro-leve {
+    background: linear-gradient(rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.05));
+  }
+
+  .vidro-ambar {
+    background: linear-gradient(#ffb133, #ff9d0a);
+    color: var(--color-accent-ink);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.45),
+      inset 0 0 0 1px rgb(255 255 255 / 0.12),
+      inset 0 -1px 0 rgb(0 0 0 / 0.18);
+  }
+
+  /* Reflexo que segue o ponteiro. --lx e --ly vêm do LuzVidro.tsx, em pixels dentro do elemento. */
+  [data-luz]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(160px circle at var(--lx, 50%) var(--ly, 0%), rgb(255 255 255 / 0.16), transparent 70%);
+    opacity: 0;
+    transition: opacity 180ms var(--ease-out-soft);
+  }
+
+  @media (hover: hover) {
+    [data-luz]:hover::after {
+      opacity: 1;
+    }
+    [data-luz]:disabled::after,
+    [data-luz][aria-disabled="true"]::after {
+      opacity: 0;
+    }
+  }
+
+  /* Aperto: o botão afunda um pouco e volta. */
+  .aperta {
+    transition:
+      transform 160ms var(--ease-out-soft),
+      opacity 160ms var(--ease-out-soft),
+      background-color 160ms var(--ease-out-soft),
+      color 160ms var(--ease-out-soft);
+  }
+  .aperta:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* ───────────── Movimento ─────────────
+ * Só transform e opacity: são as duas propriedades que o navegador anima na GPU a 60 quadros.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .entra {
+    animation: entra 420ms var(--ease-out-soft) backwards;
+    animation-delay: calc(min(var(--i, 0), 6) * 45ms);
+  }
+  .tela {
+    /* Só opacidade e sem preenchimento final: transform aqui deslocaria os elementos fixos
+     * da página, e um preenchimento permanente prenderia as janelas atrás da navegação. */
+    animation: tela 260ms ease-out backwards;
+  }
+  .sobe {
+    animation: sobe 520ms var(--ease-mola) backwards;
+  }
+  .desce {
+    animation: desce 240ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  .aparece {
+    animation: aparece 240ms var(--ease-out-soft) backwards;
+  }
+  .some {
+    animation: some 220ms ease-in both;
+  }
+  .estala {
+    animation: estala 320ms var(--ease-mola) backwards;
+  }
+  .cresce {
+    transform-origin: bottom;
+    animation: cresce 600ms var(--ease-out-soft) backwards;
+    animation-delay: calc(min(var(--i, 0), 30) * 14ms);
+  }
+  .estica {
+    transform-origin: left;
+    animation: estica 600ms var(--ease-out-soft) backwards;
+    animation-delay: calc(min(var(--i, 0), 12) * 40ms);
+  }
+  .desliza {
+    transition: transform 420ms var(--ease-mola);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entra,
+  .tela,
+  .sobe,
+  .desce,
+  .aparece,
+  .some,
+  .estala,
+  .cresce,
+  .estica {
+    animation: none;
+  }
+}
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes tela {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sobe {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  12% {
+    opacity: 1;
+  }
+}
+@keyframes desce {
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+@keyframes aparece {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes some {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes estala {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes cresce {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes estica {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* No computador a janela nasce do centro, não do rodapé. */
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .sobe {
+    animation: surge 360ms var(--ease-mola) backwards;
+  }
+  .desce {
+    animation: recolhe 200ms ease-in both;
+  }
+}
+@keyframes surge {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}
+@keyframes recolhe {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
 }
