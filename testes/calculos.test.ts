@@ -1,16 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  esperadoNaGaveta,
+  estoqueBaixo,
   intervalo,
   intervaloEntre,
   porDia,
+  porPessoa,
   resumir,
   subtotal,
   totalComanda,
   vendasNoIntervalo,
 } from "../src/lib/calculos.ts";
 import { margem, nivelMargem } from "../src/lib/dinheiro.ts";
-import type { Comanda, ItemPedido, Venda } from "../src/lib/tipos.ts";
+import type { Caixa, Comanda, ItemPedido, Produto, Venda } from "../src/lib/tipos.ts";
 
 const item = (produtoId: string, preco: number, qtd: number, custo: number | null): ItemPedido => ({
   produtoId,
@@ -144,4 +147,66 @@ test("margem e nível de margem", () => {
   assert.equal(nivelMargem(10), "baixa");
   assert.equal(nivelMargem(25), "media");
   assert.equal(nivelMargem(35), "boa");
+});
+
+test("equipe: venda conta para quem vendeu, cancelamento para quem cancelou, Yooga fica de fora", () => {
+  const ana = (total: number) => venda({ itens: [item("a", total, 1, 0)], pessoaId: "ana" });
+  const linhas = porPessoa([
+    ana(1000),
+    ana(3000),
+    venda({ itens: [item("a", 500, 1, 0)], pessoaId: "bia" }),
+    venda({ itens: [item("a", 900, 1, 0)], pessoaId: "bia", canceladaEm: "2026-11-10T21:00:00", canceladaPor: "ana" }),
+    venda({ itens: [], total: 9999, origem: "yooga" }),
+  ]);
+  assert.deepEqual(
+    linhas.map((l) => [l.pessoaId, l.pedidos, l.vendas, l.ticketMedio, l.cancelou]),
+    [
+      ["ana", 2, 4000, 2000, 1],
+      ["bia", 1, 500, 500, 0],
+    ],
+  );
+});
+
+test("dinheiro esperado na gaveta: troco + suprimento - sangria + vendas em dinheiro do turno", () => {
+  const caixa: Caixa = {
+    id: "c1",
+    abertoEm: "2026-11-10T18:00:00",
+    abertoPor: null,
+    valorInicial: 5000,
+    movimentos: [
+      { id: "m1", tipo: "sangria", valor: 1000, motivo: "", pessoaId: null, criadoEm: "" },
+      { id: "m2", tipo: "suprimento", valor: 500, motivo: "", pessoaId: null, criadoEm: "" },
+    ],
+  };
+  const dinheiro = (valor: number, extra: Partial<Venda> = {}) =>
+    venda({ itens: [item("a", valor, 1, 0)], caixaId: "c1", ...extra });
+  const vendas = [
+    dinheiro(2000),
+    // Pix não entra na gaveta
+    dinheiro(1500, { pagamentos: [{ formaId: "pix", formaNome: "Pix", taxa: 0, valor: 1500 }] }),
+    // Cancelada não conta
+    dinheiro(700, { canceladaEm: "2026-11-10T20:00:00" }),
+    // De outro turno não conta
+    dinheiro(800, { caixaId: "c0" }),
+  ];
+  assert.equal(esperadoNaGaveta(caixa, vendas), 5000 - 1000 + 500 + 2000);
+});
+
+test("estoque baixo só vale para produto ativo com estoque controlado", () => {
+  const p = (estoque: number | null, estoqueMinimo: number | null, ativo = true): Produto => ({
+    id: "p",
+    nome: "p",
+    categoriaId: "",
+    preco: 100,
+    custo: null,
+    ativo,
+    estoque,
+    estoqueMinimo,
+  });
+  assert.equal(estoqueBaixo(p(null, 5)), false);
+  assert.equal(estoqueBaixo(p(6, 5)), false);
+  assert.equal(estoqueBaixo(p(5, 5)), true);
+  assert.equal(estoqueBaixo(p(0, null)), true);
+  assert.equal(estoqueBaixo(p(-2, null)), true);
+  assert.equal(estoqueBaixo(p(0, null, false)), false);
 });

@@ -6,8 +6,12 @@ que também funciona no computador.
 ## O que faz
 
 - **Caixa**: mesas e balcões, comanda com nome do cliente, desconto, acréscimo e pagamento dividido com troco.
+- **Turno de caixa**: abre com o troco da gaveta, sangria e suprimento, e fecha contando o dinheiro. O atendente
+  conta às cegas; a diferença (sobrando ou faltando) aparece no fechamento e em "Caixas anteriores". Sem caixa aberto, não fecha venda.
+- **Estoque** (opcional por produto): a venda baixa, o cancelamento devolve, entrada e contagem pelo dono,
+  aviso de estoque baixo e histórico de cada mudança com quem fez.
 - **Produtos**: preço, custo e margem calculada na hora.
-- **Relatórios**: lucro, vendas por dia, horário e dia da semana, formas de pagamento e histórico com cancelamento.
+- **Relatórios**: lucro, vendas por dia, horário e dia da semana, formas de pagamento, equipe (quem vendeu e quem cancelou) e histórico com cancelamento.
 - **Ajustes**: pessoas e PINs, mesas e balcões, taxas da maquininha, categorias e cópia de segurança.
 - **Acesso**: entrada por PIN de 4 números. O **dono** vê tudo; o **atendente** só vê o Caixa e nunca recebe o custo dos produtos.
 

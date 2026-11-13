@@ -5,11 +5,21 @@ import { useSearchParams } from "next/navigation";
 import { CaretRight, MagnifyingGlass, Plus } from "@phosphor-icons/react";
 import { margem, nivelMargem, pct, reais } from "@/lib/dinheiro";
 import { useLoja } from "@/lib/loja";
+import { estoqueBaixo } from "@/lib/calculos";
 import type { Produto } from "@/lib/tipos";
 import { Botao, Cabecalho, Cartao, Etiqueta } from "@/components/ui";
 import { JanelaProduto } from "@/components/JanelaProduto";
 
 type Ordem = "nome" | "margem" | "preco";
+
+type Filtro = "todos" | "sem-custo" | "estoque-baixo";
+
+/** "12", ou vermelho quando acabou e âmbar quando está no mínimo. "–" para quem não controla. */
+function Estoque({ p }: { p: Produto }) {
+  if (p.estoque === null) return <span className="text-muted">–</span>;
+  const cor = p.estoque <= 0 ? "text-red-ink" : estoqueBaixo(p) ? "text-yellow-ink" : "text-ink";
+  return <span className={cor}>{p.estoque}</span>;
+}
 
 function EtiquetaMargem({ p }: { p: Produto }) {
   const m = margem(p.preco, p.custo);
@@ -30,30 +40,35 @@ export default function ProdutosPage() {
 
 function Produtos() {
   const loja = useLoja();
-  // Link dos relatórios: /produtos?filtro=sem-custo
+  // Links do Início: /produtos?filtro=sem-custo e /produtos?filtro=estoque-baixo
   const params = useSearchParams();
   const [busca, setBusca] = useState("");
   const [categoria, setCategoria] = useState("todas");
-  const [soSemCusto, setSoSemCusto] = useState(() => params.get("filtro") === "sem-custo");
+  const [filtro, setFiltro] = useState<Filtro>(() => {
+    const f = params.get("filtro");
+    return f === "sem-custo" || f === "estoque-baixo" ? f : "todos";
+  });
   const [ordem, setOrdem] = useState<Ordem>("nome");
   const [editando, setEditando] = useState<Produto | "novo" | null>(null);
 
   const ativos = useMemo(() => loja.produtos.filter((p) => p.ativo), [loja.produtos]);
   const semCusto = ativos.filter((p) => p.custo === null).length;
+  const baixos = ativos.filter(estoqueBaixo).length;
   const nomeCategoria = useMemo(() => new Map(loja.categorias.map((c) => [c.id, c.nome])), [loja.categorias]);
 
   const lista = useMemo(() => {
     const termo = busca.toLowerCase().trim();
     return ativos
       .filter((p) => categoria === "todas" || p.categoriaId === categoria)
-      .filter((p) => !soSemCusto || p.custo === null)
+      .filter((p) => filtro !== "sem-custo" || p.custo === null)
+      .filter((p) => filtro !== "estoque-baixo" || estoqueBaixo(p))
       .filter((p) => !termo || p.nome.toLowerCase().includes(termo))
       .sort((a, b) => {
         if (ordem === "preco") return b.preco - a.preco;
         if (ordem === "margem") return (margem(a.preco, a.custo) ?? -1) - (margem(b.preco, b.custo) ?? -1);
         return a.nome.localeCompare(b.nome, "pt-BR");
       });
-  }, [ativos, categoria, soSemCusto, busca, ordem]);
+  }, [ativos, categoria, filtro, busca, ordem]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 md:px-8">
@@ -97,16 +112,31 @@ function Produtos() {
         </div>
       </div>
 
-      {semCusto > 0 && (
-        <button
-          type="button"
-          data-luz=""
-          aria-pressed={soSemCusto}
-          onClick={() => setSoSemCusto((v) => !v)}
-          className={`aperta mt-3 h-9 rounded-full px-4 text-sm font-medium ${soSemCusto ? "vidro-ambar" : "vidro-leve text-yellow-ink"}`}
-        >
-          {soSemCusto ? "Mostrando só os sem custo" : `Ver os ${semCusto} sem custo`}
-        </button>
+      {(semCusto > 0 || baixos > 0 || filtro !== "todos") && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(semCusto > 0 || filtro === "sem-custo") && (
+            <button
+              type="button"
+              data-luz=""
+              aria-pressed={filtro === "sem-custo"}
+              onClick={() => setFiltro((f) => (f === "sem-custo" ? "todos" : "sem-custo"))}
+              className={`aperta h-9 rounded-full px-4 text-sm font-medium ${filtro === "sem-custo" ? "vidro-ambar" : "vidro-leve text-yellow-ink"}`}
+            >
+              {filtro === "sem-custo" ? "Mostrando só os sem custo" : `Ver os ${semCusto} sem custo`}
+            </button>
+          )}
+          {(baixos > 0 || filtro === "estoque-baixo") && (
+            <button
+              type="button"
+              data-luz=""
+              aria-pressed={filtro === "estoque-baixo"}
+              onClick={() => setFiltro((f) => (f === "estoque-baixo" ? "todos" : "estoque-baixo"))}
+              className={`aperta h-9 rounded-full px-4 text-sm font-medium ${filtro === "estoque-baixo" ? "vidro-ambar" : "vidro-leve text-yellow-ink"}`}
+            >
+              {filtro === "estoque-baixo" ? "Mostrando só os de estoque baixo" : `${baixos} com estoque baixo`}
+            </button>
+          )}
+        </div>
       )}
 
       {lista.length === 0 ? (
@@ -125,6 +155,7 @@ function Produtos() {
                   <th className="px-4 py-3 text-right font-normal">Custo</th>
                   <th className="px-4 py-3 text-right font-normal">Preço</th>
                   <th className="px-4 py-3 text-right font-normal">Lucro por unidade</th>
+                  <th className="px-4 py-3 text-right font-normal">Estoque</th>
                   <th className="px-5 py-3 text-right font-normal">Margem</th>
                 </tr>
               </thead>
@@ -142,6 +173,9 @@ function Produtos() {
                     <td className="num px-4 py-3 text-right text-body">{p.custo === null ? "–" : reais(p.custo)}</td>
                     <td className="num px-4 py-3 text-right text-ink">{reais(p.preco)}</td>
                     <td className="num px-4 py-3 text-right text-ink">{p.custo === null ? "–" : reais(p.preco - p.custo)}</td>
+                    <td className="num px-4 py-3 text-right">
+                      <Estoque p={p} />
+                    </td>
                     <td className="px-5 py-3 text-right">
                       <EtiquetaMargem p={p} />
                     </td>
@@ -166,6 +200,12 @@ function Produtos() {
                       <p className="num text-[13px] text-body">
                         {reais(p.preco)}
                         {p.custo !== null && ` · custo ${reais(p.custo)}`}
+                        {p.estoque !== null && (
+                          <>
+                            {" · "}
+                            <Estoque p={p} /> em estoque
+                          </>
+                        )}
                       </p>
                     </div>
                     <EtiquetaMargem p={p} />

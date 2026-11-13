@@ -4,7 +4,23 @@ import { useSyncExternalStore } from "react";
 import { banco } from "./banco";
 import { subtotal } from "./calculos";
 import { lerIdLugar } from "./lugares";
-import type { Categoria, Comanda, Estado, FormaPagamento, ItemPedido, Pagamento, Papel, Produto, TipoLugar, Venda } from "./tipos";
+import type {
+  Caixa,
+  Categoria,
+  Comanda,
+  Estado,
+  FormaPagamento,
+  ItemPedido,
+  Membro,
+  MovimentoCaixa,
+  MovimentoEstoque,
+  Pagamento,
+  Papel,
+  Produto,
+  ResumoCaixa,
+  TipoLugar,
+  Venda,
+} from "./tipos";
 
 /*
  * Os dados moram no banco (Supabase). Este arquivo guarda uma cópia na memória para as
@@ -29,6 +45,8 @@ const vazio: Estado = {
   comandas: [],
   vendas: [],
   vendasProntas: false,
+  caixa: null,
+  equipe: [],
 };
 
 const ouvintes = new Set<() => void>();
@@ -87,6 +105,8 @@ const paraProduto = (l: Linha): Produto => ({
   preco: l.preco as number,
   custo: custos.get(l.id as string) ?? null,
   ativo: l.ativo as boolean,
+  estoque: (l.estoque as number | null) ?? null,
+  estoqueMinimo: (l.estoque_minimo as number | null) ?? null,
 });
 
 const paraForma = (l: Linha): FormaPagamento => ({ id: l.id as string, nome: l.nome as string, taxa: Number(l.taxa) });
@@ -117,6 +137,46 @@ const paraVenda = (l: Linha): Venda => ({
   criadaEm: l.criada_em as string,
   ...(l.cancelada_em ? { canceladaEm: l.cancelada_em as string } : {}),
   ...(l.origem === "yooga" ? { origem: "yooga" as const } : {}),
+  pessoaId: (l.pessoa_id as string | null) ?? null,
+  canceladaPor: (l.cancelada_por as string | null) ?? null,
+  caixaId: (l.caixa_id as string | null) ?? null,
+});
+
+const paraMovimento = (l: Linha): MovimentoCaixa => ({
+  id: l.id as string,
+  tipo: l.tipo as MovimentoCaixa["tipo"],
+  valor: l.valor as number,
+  motivo: (l.motivo as string) ?? "",
+  pessoaId: (l.pessoa_id as string | null) ?? null,
+  criadoEm: l.criado_em as string,
+});
+
+const paraCaixa = (l: Linha | null): Caixa | null =>
+  l
+    ? {
+        id: l.id as string,
+        abertoEm: l.aberto_em as string,
+        abertoPor: (l.aberto_por as string | null) ?? null,
+        valorInicial: l.valor_inicial as number,
+        movimentos: ((l.movimentos as Linha[]) ?? []).map(paraMovimento),
+      }
+    : null;
+
+const paraResumo = (l: Linha): ResumoCaixa => ({
+  id: l.id as string,
+  abertoEm: l.aberto_em as string,
+  abertoPor: (l.aberto_por as string | null) ?? null,
+  valorInicial: l.valor_inicial as number,
+  fechadoEm: (l.fechado_em as string | null) ?? null,
+  fechadoPor: (l.fechado_por as string | null) ?? null,
+  esperado: (l.esperado as number | null) ?? null,
+  contado: (l.contado as number | null) ?? null,
+  observacao: (l.observacao as string) ?? "",
+  movimentos: ((l.movimentos as Linha[]) ?? []).map(paraMovimento),
+  pedidos: Number(l.pedidos ?? 0),
+  canceladas: Number(l.canceladas ?? 0),
+  total: (l.total as number | null) ?? null,
+  porForma: (l.por_forma as ResumoCaixa["porForma"]) ?? [],
 });
 
 /** Ao fechar a venda o banco esvazia a comanda em vez de apagar: comanda sem itens é lugar livre. */
@@ -187,14 +247,17 @@ async function carregar(usuario: string) {
     }
     const papel = eu.papel as Papel;
     if (papel === "dono") await carregarCustos();
-    const [categorias, produtos, formas, config, comandas] = await Promise.all([
+    const [categorias, produtos, formas, config, comandas, caixa, equipe] = await Promise.all([
       tudo("categorias"),
       tudo("produtos"),
       tudo("formas"),
       banco.from("configuracao").select("*").eq("id", 1).single(),
       tudo("comandas"),
+      banco.rpc("caixa_atual"),
+      buscarEquipe(papel),
     ]);
     if (config.error) throw config.error;
+    if (caixa.error) throw caixa.error;
     if (usuarioCarregado !== usuario) return;
     por({
       situacao: "dentro",
@@ -207,6 +270,8 @@ async function carregar(usuario: string) {
       comandas: abertas(comandas),
       vendas: [],
       vendasProntas: papel !== "dono",
+      caixa: paraCaixa(caixa.data as Linha | null),
+      equipe,
     });
     escutar();
     if (papel === "dono") void carregarVendas(usuario);
@@ -223,6 +288,18 @@ const ordenarCategorias = (linhas: Linha[]): Categoria[] =>
 
 const ordenarFormas = (linhas: Linha[]) =>
   [...linhas].sort((a, b) => (a.ordem as number) - (b.ordem as number)).map(paraForma);
+
+/** O dono vê todo mundo, inclusive quem foi removido (para os nomes no histórico). O atendente, quem está ativo. */
+async function buscarEquipe(papel: Papel): Promise<Membro[]> {
+  if (papel === "dono") {
+    const { data, error } = await banco.from("pessoas").select("id,nome,papel,ativo").order("nome");
+    if (error) throw error;
+    return data.map((p) => ({ id: p.id, nome: p.nome, papel: p.papel as Papel, ativo: p.ativo }));
+  }
+  const { data, error } = await banco.rpc("pessoas_login");
+  if (error) throw error;
+  return (data as Membro[]).map((p) => ({ ...p, ativo: true }));
+}
 
 async function carregarCustos() {
   const linhas = await tudo("custos", undefined, "produto_id");
@@ -271,13 +348,18 @@ async function carregarVendas(usuario: string) {
 const recarregando = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Junta várias mudanças seguidas da mesma tabela numa busca só. */
-function recarregar(tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas") {
+function recarregar(tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe") {
   clearTimeout(recarregando.get(tabela));
   recarregando.set(
     tabela,
     setTimeout(async () => {
       try {
         if (tabela === "categorias") por({ categorias: ordenarCategorias(await tudo("categorias")) });
+        if (tabela === "caixa") {
+          const { data, error } = await banco.rpc("caixa_atual");
+          if (!error) por({ caixa: paraCaixa(data as Linha | null) });
+        }
+        if (tabela === "equipe" && atual.pessoa) por({ equipe: await buscarEquipe(atual.pessoa.papel) });
         if (tabela === "formas") por({ formas: ordenarFormas(await tudo("formas")) });
         if (tabela === "comandas") {
           const linhas = abertas(await tudo("comandas"));
@@ -338,9 +420,25 @@ function escutar() {
         case "pessoas":
           // Se a pessoa logada foi removida ou mudou de papel, recarrega tudo.
           if (usuarioCarregado && (novo?.auth_id ?? velho?.auth_id) === usuarioCarregado) void carregar(usuarioCarregado);
+          else recarregar("equipe");
+          return;
+        case "caixas":
+        case "movimentos_caixa":
+          recarregar("caixa");
+          return;
+        case "produtos":
+          // Cada venda mexe no estoque: troca só o produto que mudou, sem buscar a lista inteira.
+          if (m.eventType === "DELETE") {
+            recarregar("produtos");
+            return;
+          }
+          mudar((e) => {
+            const produto = paraProduto(novo);
+            const existe = e.produtos.some((p) => p.id === produto.id);
+            return { ...e, produtos: existe ? e.produtos.map((p) => (p.id === produto.id ? produto : p)) : [...e.produtos, produto] };
+          });
           return;
         case "categorias":
-        case "produtos":
         case "formas":
         case "configuracao":
         case "custos":
@@ -349,7 +447,7 @@ function escutar() {
     })
     .subscribe((estado) => {
       // Voltou a conexão depois de uma queda: busca o que mudou enquanto estava fora.
-      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao"] as const).forEach(recarregar);
+      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe"] as const).forEach(recarregar);
       if (estado === "SUBSCRIBED") escutouAntes = true;
     });
 }
@@ -372,27 +470,40 @@ async function gravar(pedido: PromiseLike<{ error: unknown }>, tabela: Parameter
 
 /* Produtos e categorias */
 
-export function salvarProduto(dados: Omit<Produto, "id" | "ativo"> & { id?: string }) {
+/**
+ * Grava o produto. A tela já mostra a mudança na hora; a promessa devolve o id quando o banco
+ * confirmou, ou null se falhou.
+ */
+export function salvarProduto(dados: Omit<Produto, "id" | "ativo" | "estoque"> & { id?: string }): Promise<string | null> {
   const id = dados.id ?? novoId();
-  const produto: Produto = { ...dados, id, ativo: true };
+  const estoque = atual.produtos.find((p) => p.id === id)?.estoque ?? null;
+  const produto: Produto = { ...dados, id, ativo: true, estoque };
   mudar((e) => ({
     ...e,
     produtos: dados.id ? e.produtos.map((p) => (p.id === id ? { ...p, ...produto } : p)) : [...e.produtos, produto],
   }));
   if (dados.custo === null) custos.delete(id);
   else custos.set(id, dados.custo);
-  void (async () => {
+  return (async () => {
     const ok = await gravar(
-      banco.from("produtos").upsert({ id, nome: dados.nome, categoria_id: dados.categoriaId || null, preco: dados.preco, ativo: true }),
+      banco.from("produtos").upsert({
+        id,
+        nome: dados.nome,
+        categoria_id: dados.categoriaId || null,
+        preco: dados.preco,
+        estoque_minimo: dados.estoqueMinimo,
+        ativo: true,
+      }),
       "produtos",
     );
-    if (!ok) return;
-    await gravar(
+    if (!ok) return null;
+    const custoOk = await gravar(
       dados.custo === null
         ? banco.from("custos").delete().eq("produto_id", id)
         : banco.from("custos").upsert({ produto_id: id, custo: dados.custo }),
       "custos",
     );
+    return custoOk ? id : null;
   })();
 }
 
@@ -589,7 +700,14 @@ export function finalizarVenda(comandaId: string, pagamentos: Pagamento[]): Prom
         p_pagamentos: pagamentos.map((p) => ({ formaId: p.formaId, valor: p.valor })),
         p_chave: novoId(),
       });
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("caixa_fechado")) {
+          por({ erro: "O caixa está fechado. Abra o caixa para fechar a venda." });
+          recarregar("caixa");
+          return null;
+        }
+        throw error;
+      }
       const venda = paraVenda(data as Linha);
       mudar((e) => ({
         ...e,
@@ -617,7 +735,7 @@ function marcarCancelamento(vendaId: string, quando: string | null) {
       if (v.id !== vendaId) return v;
       const resto = { ...v };
       delete resto.canceladaEm;
-      return quando ? { ...resto, canceladaEm: quando } : resto;
+      return quando ? { ...resto, canceladaEm: quando, canceladaPor: atual.pessoa?.id ?? null } : { ...resto, canceladaPor: null };
     }),
   }));
   // Vendas do histórico do Yooga são achadas pelo código de lá.
@@ -651,4 +769,139 @@ export function exportarDados(): string {
 export function nomeDeProdutoEmUso(nome: string, ignorarId?: string): boolean {
   const alvo = nome.trim().toLowerCase();
   return atual.produtos.some((p) => p.ativo && p.id !== ignorarId && p.nome.trim().toLowerCase() === alvo);
+}
+
+/* Caixa (turno) */
+
+const MENSAGENS_CAIXA: Record<string, string> = {
+  caixa_aberto: "O caixa já foi aberto, talvez em outro aparelho",
+  caixa_fechado: "O caixa já está fechado",
+  valor_invalido: "Confira o valor",
+  so_dono: "Só o dono pode fazer isso",
+  produto_nao_encontrado: "Produto não encontrado",
+};
+const SEM_REDE = "Não consegui falar com o sistema. Confira a internet";
+
+/** Chama uma função do banco. Devolve os dados, ou a mensagem de erro pronta para a tela. */
+async function chamar<T>(funcao: string, parametros?: Record<string, unknown>): Promise<{ ok: true; dados: T } | { ok: false; erro: string }> {
+  try {
+    const { data, error } = await banco.rpc(funcao, parametros);
+    if (!error) return { ok: true, dados: data as T };
+    const codigo = Object.keys(MENSAGENS_CAIXA).find((c) => error.message?.includes(c));
+    return { ok: false, erro: codigo ? MENSAGENS_CAIXA[codigo] : SEM_REDE };
+  } catch {
+    return { ok: false, erro: SEM_REDE };
+  }
+}
+
+/** Abre o turno com o dinheiro que está na gaveta. Devolve a mensagem de erro, ou null se deu certo. */
+export async function abrirCaixa(valorInicial: number): Promise<string | null> {
+  const r = await chamar<string>("abrir_caixa", { p_valor: valorInicial });
+  recarregar("caixa");
+  return r.ok ? null : r.erro;
+}
+
+export async function movimentarCaixa(tipo: MovimentoCaixa["tipo"], valor: number, motivo: string): Promise<string | null> {
+  const r = await chamar<string>("movimentar_caixa", { p_tipo: tipo, p_valor: valor, p_motivo: motivo });
+  recarregar("caixa");
+  return r.ok ? null : r.erro;
+}
+
+/** Fecha o turno com o dinheiro contado na gaveta. Devolve o resumo para mostrar a diferença. */
+export async function fecharCaixa(contado: number, observacao: string): Promise<ResumoCaixa | string> {
+  const r = await chamar<Linha>("fechar_caixa", { p_contado: contado, p_observacao: observacao });
+  recarregar("caixa");
+  return r.ok ? paraResumo(r.dados) : r.erro;
+}
+
+export async function resumoCaixa(id: string): Promise<ResumoCaixa | string> {
+  const r = await chamar<Linha>("resumo_caixa", { p_caixa: id });
+  return r.ok ? paraResumo(r.dados) : r.erro;
+}
+
+export interface CaixaFechado {
+  id: string;
+  abertoEm: string;
+  fechadoEm: string;
+  abertoPor: string | null;
+  fechadoPor: string | null;
+  esperado: number;
+  contado: number;
+}
+
+/** Turnos já fechados, do mais novo para o mais antigo. null = sem internet. */
+export async function listarCaixas(limite = 60): Promise<CaixaFechado[] | null> {
+  try {
+    const { data, error } = await banco
+      .from("caixas")
+      .select("id,aberto_em,fechado_em,aberto_por,fechado_por,esperado,contado")
+      .not("fechado_em", "is", null)
+      .order("aberto_em", { ascending: false })
+      .limit(limite);
+    if (error) return null;
+    return data.map((l) => ({
+      id: l.id,
+      abertoEm: l.aberto_em,
+      fechadoEm: l.fechado_em,
+      abertoPor: l.aberto_por,
+      fechadoPor: l.fechado_por,
+      esperado: l.esperado ?? 0,
+      contado: l.contado ?? 0,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/* Estoque (só o dono) */
+
+/** Entrada soma ao estoque; contagem troca o estoque pelo número contado. Devolve o erro, ou null. */
+export async function registrarEstoque(
+  produtoId: string,
+  tipo: "entrada" | "contagem",
+  qtd: number,
+  motivo = "",
+): Promise<string | null> {
+  const r = await chamar<number>("registrar_estoque", { p_produto: produtoId, p_tipo: tipo, p_qtd: qtd, p_motivo: motivo });
+  if (r.ok) mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (p.id === produtoId ? { ...p, estoque: r.dados } : p)) }));
+  return r.ok ? null : r.erro;
+}
+
+/** O produto deixa de ter estoque controlado. */
+export function pararEstoque(produtoId: string) {
+  mudar((e) => ({
+    ...e,
+    produtos: e.produtos.map((p) => (p.id === produtoId ? { ...p, estoque: null, estoqueMinimo: null } : p)),
+  }));
+  void gravar(banco.from("produtos").update({ estoque: null, estoque_minimo: null }).eq("id", produtoId), "produtos");
+}
+
+/** Últimas mudanças no estoque de um produto. null = sem internet. */
+export async function movimentosEstoque(produtoId: string, limite = 15): Promise<MovimentoEstoque[] | null> {
+  try {
+    const { data, error } = await banco
+      .from("movimentos_estoque")
+      .select("id,tipo,qtd,saldo,pessoa_id,motivo,criado_em")
+      .eq("produto_id", produtoId)
+      .order("criado_em", { ascending: false })
+      .limit(limite);
+    if (error) return null;
+    return data.map((l) => ({
+      id: l.id,
+      tipo: l.tipo,
+      qtd: l.qtd,
+      saldo: l.saldo,
+      pessoaId: l.pessoa_id,
+      motivo: l.motivo,
+      criadoEm: l.criado_em,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/** Nome de quem fez algo. "Alguém" quando a pessoa não está na lista (por exemplo, removida, para o atendente). */
+export function nomePessoa(equipe: Membro[], id: string | null | undefined): string {
+  if (!id) return "Sem registro";
+  return equipe.find((p) => p.id === id)?.nome ?? "Alguém";
 }

@@ -12,22 +12,25 @@ import {
   porDia,
   porDiaSemana,
   porHora,
+  porPessoa,
   resumir,
   taxasDaVenda,
+  todasNoIntervalo,
   vendasNoIntervalo,
   type Periodo,
   type Resumo,
 } from "@/lib/calculos";
-import { cancelarVenda, restaurarVenda, useLoja } from "@/lib/loja";
-import type { Venda } from "@/lib/tipos";
+import { cancelarVenda, nomePessoa, restaurarVenda, useLoja } from "@/lib/loja";
+import type { Membro, Venda } from "@/lib/tipos";
 import { Botao, Cabecalho, Cartao, Etiqueta, Janela, NumeroAnimado, Segmentado, useAgora } from "@/components/ui";
 import { Barras, ListaBarras } from "@/components/Graficos";
 
-type Aba = "lucro" | "vendas" | "pagamentos" | "historico";
+type Aba = "lucro" | "vendas" | "pagamentos" | "equipe" | "historico";
 const ABAS: { id: Aba; nome: string }[] = [
   { id: "lucro", nome: "Lucro" },
   { id: "vendas", nome: "Vendas" },
   { id: "pagamentos", nome: "Pagamentos" },
+  { id: "equipe", nome: "Equipe" },
   { id: "historico", nome: "Histórico" },
 ];
 const PERIODOS: Periodo[] = ["hoje", "ontem", "7dias", "30dias", "mes", "mes-passado"];
@@ -136,7 +139,8 @@ function Relatorios() {
           {aba === "lucro" && <AbaLucro r={r} nomePeriodo={nomePeriodo} temTaxa={loja.formas.some((f) => f.taxa > 0)} />}
           {aba === "vendas" && <AbaVendas vendas={vendas} r={r} faixa={faixa} />}
           {aba === "pagamentos" && <AbaPagamentos r={r} />}
-          {aba === "historico" && <AbaHistorico todas={loja.vendas} faixa={faixa} />}
+          {aba === "equipe" && <AbaEquipe todas={faixa ? todasNoIntervalo(loja.vendas, faixa) : []} equipe={loja.equipe} />}
+          {aba === "historico" && <AbaHistorico todas={loja.vendas} faixa={faixa} equipe={loja.equipe} />}
         </div>
       )}
     </div>
@@ -448,9 +452,56 @@ function AbaPagamentos({ r }: { r: Resumo }) {
   );
 }
 
+/* ───────── Equipe: quem vendeu e quem cancelou ───────── */
+
+function AbaEquipe({ todas, equipe }: { todas: Venda[]; equipe: Membro[] }) {
+  const linhas = useMemo(() => porPessoa(todas), [todas]);
+  const doYooga = useMemo(() => todas.filter((v) => v.origem === "yooga" && !v.canceladaEm).length, [todas]);
+  const maior = Math.max(1, ...linhas.map((l) => l.vendas));
+
+  if (linhas.length === 0) {
+    return <Vazio>{doYooga > 0 ? "Só há vendas do Yooga neste período. Lá não ficou registrado quem vendeu" : undefined}</Vazio>;
+  }
+
+  return (
+    <>
+      <Cartao className="entra overflow-hidden">
+        <ul className="num divide-y divide-line">
+          {linhas.map((l) => (
+            <li key={l.pessoaId ?? "sem"} className="px-5 py-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="min-w-0 truncate text-[17px] font-medium text-ink">{nomePessoa(equipe, l.pessoaId)}</p>
+                <p className="shrink-0 text-[17px] font-semibold text-ink">{reais(l.vendas)}</p>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunk">
+                <span className="estica block h-full rounded-full bg-accent" style={{ width: `${(l.vendas / maior) * 100}%` }} />
+              </div>
+              <p className="mt-2 text-[13px] text-body">
+                {l.pedidos} {l.pedidos === 1 ? "venda" : "vendas"}
+                {l.pedidos > 0 && ` · ticket médio de ${reais(l.ticketMedio)}`}
+                {l.cancelou > 0 && (
+                  <span className="text-red-ink">
+                    {" · "}
+                    cancelou {l.cancelou} {l.cancelou === 1 ? "venda" : "vendas"}
+                  </span>
+                )}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </Cartao>
+      {doYooga > 0 && (
+        <p className="mt-3 text-[13px] text-muted">
+          {doYooga.toLocaleString("pt-BR")} {doYooga === 1 ? "venda do Yooga fica" : "vendas do Yooga ficam"} de fora: lá não ficou registrado quem vendeu.
+        </p>
+      )}
+    </>
+  );
+}
+
 /* ───────── Histórico de vendas ───────── */
 
-function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | null }) {
+function AbaHistorico({ todas, faixa, equipe }: { todas: Venda[]; faixa: [Date, Date] | null; equipe: Membro[] }) {
   const [busca, setBusca] = useState("");
   const [limite, setLimite] = useState(PASSO_HISTORICO);
   // Volta para as mais recentes quando a busca ou o período mudam.
@@ -592,9 +643,11 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
             <p className="text-body">
               {nomeDaVenda(venda)} · {formatoDataHora.format(new Date(venda.criadaEm))}
             </p>
+            {venda.origem !== "yooga" && <p className="text-muted">Vendida por {nomePessoa(equipe, venda.pessoaId)}</p>}
             {venda.canceladaEm && (
               <p className="mt-3 rounded-[14px] bg-red-soft px-4 py-3 text-red-ink">
-                Cancelada em {formatoDataHora.format(new Date(venda.canceladaEm))}. Não entra nos relatórios
+                Cancelada em {formatoDataHora.format(new Date(venda.canceladaEm))}
+                {venda.canceladaPor && ` por ${nomePessoa(equipe, venda.canceladaPor)}`}. Não entra nos relatórios
               </p>
             )}
             {confirmando && (

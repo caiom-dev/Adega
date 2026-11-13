@@ -9,6 +9,7 @@ import { NOME_TIPO, NOME_TIPO_PLURAL, idLugar, tempoDesde } from "@/lib/lugares"
 import { definirAba, useLoja } from "@/lib/loja";
 import type { Comanda, TipoLugar } from "@/lib/tipos";
 import { Cabecalho, NumeroAnimado, Segmentado, useAgora } from "@/components/ui";
+import { Turno } from "./Turno";
 
 const ABAS: TipoLugar[] = ["mesa", "balcao"];
 
@@ -52,6 +53,10 @@ export function MapaLugares() {
           )
         }
       />
+
+      <div className="mb-4">
+        <Turno />
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Segmentado

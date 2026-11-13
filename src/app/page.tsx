@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowRight, CaretRight, Warning } from "@phosphor-icons/react";
+import { ArrowRight, CaretRight, Package, Warning } from "@phosphor-icons/react";
 import { pct, reais } from "@/lib/dinheiro";
-import { intervalo, porDia, resumir, totalComanda, vendasNoIntervalo, type Resumo } from "@/lib/calculos";
+import { estoqueBaixo, intervalo, porDia, resumir, totalComanda, vendasNoIntervalo, type Resumo } from "@/lib/calculos";
 import { nomeComanda, tempoDesde } from "@/lib/lugares";
 import { useLoja } from "@/lib/loja";
 import type { Venda } from "@/lib/tipos";
@@ -87,6 +87,7 @@ export default function InicioPage() {
   }, [loja.vendas]);
   const abertas = loja.comandas.filter((c) => c.itens.length > 0);
   const semCusto = loja.produtos.filter((p) => p.ativo && p.custo === null).length;
+  const baixos = loja.produtos.filter(estoqueBaixo).length;
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 md:px-8">
@@ -103,7 +104,7 @@ export default function InicioPage() {
             data-luz=""
             className="vidro-ambar aperta inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-5 text-[15px] font-semibold"
           >
-            Abrir caixa
+            {loja.caixa ? "Ir para o caixa" : "Abrir caixa"}
             <ArrowRight size={16} weight="bold" />
           </Link>
         </div>
@@ -145,6 +146,20 @@ export default function InicioPage() {
               <Warning size={20} weight="fill" className="shrink-0" />
               <span className="flex-1">
                 {semCusto} {semCusto === 1 ? "produto está" : "produtos estão"} sem custo, então o lucro aparece maior do que é
+              </span>
+              <CaretRight size={14} weight="bold" />
+            </Link>
+          )}
+
+          {baixos > 0 && (
+            <Link
+              href="/produtos?filtro=estoque-baixo"
+              className="aperta entra mt-3 flex items-center gap-3 rounded-[16px] bg-red-soft px-4 py-3 text-[15px] text-red-ink"
+              style={{ "--i": 4 } as React.CSSProperties}
+            >
+              <Package size={20} weight="fill" className="shrink-0" />
+              <span className="flex-1">
+                {baixos} {baixos === 1 ? "produto está" : "produtos estão"} com estoque baixo
               </span>
               <CaretRight size={14} weight="bold" />
             </Link>

@@ -14,6 +14,10 @@ export interface Produto {
   /** null quando o custo ainda não foi cadastrado. O atendente sempre recebe null. */
   custo: Centavos | null;
   ativo: boolean;
+  /** Unidades em estoque. null quando o produto não tem estoque controlado. Pode ficar negativo. */
+  estoque: number | null;
+  /** Abaixo ou igual a isso, o produto aparece como "estoque baixo". */
+  estoqueMinimo: number | null;
 }
 
 export interface FormaPagamento {
@@ -73,6 +77,62 @@ export interface Venda {
    * faturamento, horário e forma de pagamento, mas fica fora do lucro.
    */
   origem?: "yooga";
+  /** Quem fechou a venda. */
+  pessoaId?: string | null;
+  /** Quem cancelou (só enquanto está cancelada). */
+  canceladaPor?: string | null;
+  /** Turno de caixa em que a venda entrou. */
+  caixaId?: string | null;
+}
+
+export interface MovimentoCaixa {
+  id: string;
+  /** Sangria tira dinheiro da gaveta; suprimento põe. */
+  tipo: "sangria" | "suprimento";
+  valor: Centavos;
+  motivo: string;
+  pessoaId: string | null;
+  criadoEm: string;
+}
+
+/** O turno de caixa aberto agora. */
+export interface Caixa {
+  id: string;
+  abertoEm: string;
+  abertoPor: string | null;
+  /** Dinheiro que estava na gaveta ao abrir (o troco). */
+  valorInicial: Centavos;
+  movimentos: MovimentoCaixa[];
+}
+
+/** Resumo de um turno, aberto ou fechado. Valores null = escondidos (contagem às cegas do atendente). */
+export interface ResumoCaixa {
+  id: string;
+  abertoEm: string;
+  abertoPor: string | null;
+  valorInicial: Centavos;
+  fechadoEm: string | null;
+  fechadoPor: string | null;
+  esperado: Centavos | null;
+  contado: Centavos | null;
+  observacao: string;
+  movimentos: MovimentoCaixa[];
+  pedidos: number;
+  canceladas: number;
+  total: Centavos | null;
+  porForma: { formaId: string; formaNome: string; valor: Centavos }[];
+}
+
+export interface MovimentoEstoque {
+  id: string;
+  tipo: "venda" | "cancelamento" | "entrada" | "contagem";
+  /** Quanto mudou: positivo entrou, negativo saiu. */
+  qtd: number;
+  /** Estoque depois da mudança. */
+  saldo: number;
+  pessoaId: string | null;
+  motivo: string;
+  criadoEm: string;
 }
 
 export type Papel = "dono" | "atendente";
@@ -81,6 +141,11 @@ export interface Pessoa {
   id: string;
   nome: string;
   papel: Papel;
+}
+
+/** Pessoa para mostrar o nome em vendas, caixas e estoque. Inclui quem já foi removido (para o dono). */
+export interface Membro extends Pessoa {
+  ativo: boolean;
 }
 
 export interface Estado {
@@ -105,4 +170,8 @@ export interface Estado {
   vendas: Venda[];
   /** false enquanto as vendas (inclusive o histórico do Yooga) ainda estão chegando. */
   vendasProntas: boolean;
+  /** Turno de caixa aberto. null = caixa fechado. */
+  caixa: Caixa | null;
+  /** Nomes de quem usa o app, para mostrar quem fez o quê. */
+  equipe: Membro[];
 }

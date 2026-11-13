@@ -13,6 +13,7 @@ import { Botao, CampoDinheiro, CampoTexto, Janela, NumeroAnimado, useAgora } fro
 import { GradeProdutos } from "./GradeProdutos";
 import { PainelComanda } from "./PainelComanda";
 import { JanelaPagamento } from "./JanelaPagamento";
+import { JanelaAbrirCaixa } from "./Turno";
 
 type Ajuste = "desconto" | "acrescimo";
 
@@ -31,6 +32,7 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
   const [editandoCliente, setEditandoCliente] = useState(false);
   const [cliente, setCliente] = useState("");
   const [confirmarEsvaziar, setConfirmarEsvaziar] = useState(false);
+  const [abrindoCaixa, setAbrindoCaixa] = useState(false);
 
   if (!lugar) {
     return (
@@ -74,7 +76,7 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
       aoDesconto={() => abrirAjuste("desconto")}
       aoAcrescimo={() => abrirAjuste("acrescimo")}
       aoEsvaziar={() => setConfirmarEsvaziar(true)}
-      aoCobrar={() => setCobrando(true)}
+      aoCobrar={() => (loja.caixa ? setCobrando(true) : setAbrindoCaixa(true))}
     />
   );
 
@@ -167,7 +169,7 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
         </button>
       </div>
 
-      <Janela aberta={pedidoAberto && !cobrando} aoFechar={() => setPedidoAberto(false)} titulo={titulo}>
+      <Janela aberta={pedidoAberto && !cobrando && !abrindoCaixa} aoFechar={() => setPedidoAberto(false)} titulo={titulo}>
         <div className="flex h-[62dvh] flex-col gap-4">
           {ocupado && (
             <div className="flex items-center justify-between gap-3 text-[13px] text-body">
@@ -191,6 +193,9 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
           <div className="min-h-0 flex-1">{painel}</div>
         </div>
       </Janela>
+
+      {/* Sem caixa aberto não dá para fechar a venda: abre o caixa aqui mesmo e segue */}
+      <JanelaAbrirCaixa aberta={abrindoCaixa} aoFechar={() => setAbrindoCaixa(false)} aoAbrir={() => setCobrando(true)} />
 
       {cobrando && (
         <JanelaPagamento

@@ -1,4 +1,4 @@
-import type { Centavos, Comanda, ItemPedido, Venda } from "./tipos";
+import type { Caixa, Centavos, Comanda, ItemPedido, Produto, Venda } from "./tipos";
 
 export function subtotal(itens: ItemPedido[]): Centavos {
   return itens.reduce((s, i) => s + i.preco * i.qtd, 0);
@@ -235,4 +235,75 @@ export function porDiaSemana(vendas: Venda[]): Balde[] {
     b.pedidos += 1;
   }
   return baldes;
+}
+
+/* Equipe */
+
+export interface LinhaPessoa {
+  /** null = venda sem registro de quem fez. */
+  pessoaId: string | null;
+  pedidos: number;
+  vendas: Centavos;
+  ticketMedio: Centavos;
+  /** Vendas do período que esta pessoa cancelou. */
+  cancelou: number;
+}
+
+/**
+ * Vendas por pessoa no período. Recebe todas as vendas do período, inclusive as canceladas:
+ * as válidas contam para quem vendeu, as canceladas contam para quem cancelou.
+ * As do Yooga ficam de fora (lá não se sabe quem vendeu).
+ */
+export function porPessoa(vendas: Venda[]): LinhaPessoa[] {
+  const linhas = new Map<string | null, LinhaPessoa>();
+  const linha = (id: string | null) => {
+    let l = linhas.get(id);
+    if (!l) {
+      l = { pessoaId: id, pedidos: 0, vendas: 0, ticketMedio: 0, cancelou: 0 };
+      linhas.set(id, l);
+    }
+    return l;
+  };
+  for (const v of vendas) {
+    if (v.origem === "yooga") continue;
+    if (v.canceladaEm) {
+      linha(v.canceladaPor ?? null).cancelou += 1;
+      continue;
+    }
+    const l = linha(v.pessoaId ?? null);
+    l.pedidos += 1;
+    l.vendas += v.total;
+  }
+  for (const l of linhas.values()) l.ticketMedio = l.pedidos > 0 ? Math.round(l.vendas / l.pedidos) : 0;
+  return [...linhas.values()].sort((a, b) => b.vendas - a.vendas || b.cancelou - a.cancelou);
+}
+
+/** Vendas criadas no intervalo, canceladas ou não. */
+export function todasNoIntervalo(vendas: Venda[], [de, ate]: [Date, Date]): Venda[] {
+  const a = de.getTime();
+  const b = ate.getTime();
+  return vendas.filter((v) => {
+    const t = new Date(v.criadaEm).getTime();
+    return t >= a && t < b;
+  });
+}
+
+/* Caixa */
+
+/** Dinheiro que deveria estar na gaveta: troco inicial + suprimentos − sangrias + vendas em dinheiro do turno. */
+export function esperadoNaGaveta(caixa: Caixa, vendas: Venda[]): Centavos {
+  let total = caixa.valorInicial;
+  for (const m of caixa.movimentos) total += m.tipo === "suprimento" ? m.valor : -m.valor;
+  for (const v of vendas) {
+    if (v.caixaId !== caixa.id || v.canceladaEm) continue;
+    for (const p of v.pagamentos) if (p.formaId === "dinheiro") total += p.valor;
+  }
+  return total;
+}
+
+/* Estoque */
+
+/** Produto com estoque controlado que chegou no mínimo (ou acabou). */
+export function estoqueBaixo(p: Produto): boolean {
+  return p.ativo && p.estoque !== null && p.estoque <= (p.estoqueMinimo ?? 0);
 }

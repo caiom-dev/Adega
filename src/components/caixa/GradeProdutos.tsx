@@ -104,7 +104,18 @@ export function GradeProdutos({
                   }`}
                 >
                   <span className="line-clamp-2 pr-7 text-[15px] leading-snug font-medium text-ink">{p.nome}</span>
-                  <span className="num mt-3 text-sm text-body">{reais(p.preco)}</span>
+                  <span className="num mt-3 flex items-baseline justify-between gap-2 text-sm">
+                    <span className="text-body">{reais(p.preco)}</span>
+                    {p.estoque !== null && (
+                      <span
+                        className={`text-xs ${
+                          p.estoque <= 0 ? "text-red-ink" : p.estoque <= (p.estoqueMinimo ?? 0) ? "text-yellow-ink" : "text-muted"
+                        }`}
+                      >
+                        {p.estoque <= 0 ? "acabou" : `${p.estoque} em estoque`}
+                      </span>
+                    )}
+                  </span>
                   {qtd > 0 && (
                     // A chave muda a cada unidade, então o contador "estala" de novo
                     <span

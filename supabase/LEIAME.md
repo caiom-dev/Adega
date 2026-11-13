@@ -13,3 +13,8 @@ histórico completo fica lá (Database > Migrations).
   é preciso liberar o acesso dela e usar a chave guardada em `interno.importacao`.
 - `migrations/003_seguranca.sql`: liga RLS em `interno.importacao`, tira o acesso de fora ao schema
   `interno` e fixa o `search_path` de `interno.pin_valido`. Aplicada em 13/11/2026.
+- `migrations/004_caixa_estoque_equipe.sql`: turnos de caixa (abrir, sangria, suprimento, fechar com
+  conferência às cegas), estoque por produto com histórico, e quem vendeu/cancelou. Aplicada em 13/11/2026.
+- `migrations/005_exige_caixa_aberto.sql`: venda do app só entra com caixa aberto. Aplicada em 13/11/2026.
+
+`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois a 004 e a 005.
