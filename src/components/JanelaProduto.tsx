@@ -13,7 +13,7 @@ import {
   useLoja,
 } from "@/lib/loja";
 import type { Categoria, MovimentoEstoque, Produto } from "@/lib/tipos";
-import { Botao, CampoDinheiro, CampoEscolha, CampoTexto, Janela } from "@/components/ui";
+import { Botao, CampoDinheiro, CampoEscolha, CampoTexto, Chave, Janela } from "@/components/ui";
 
 const soNumero = (texto: string) => texto.replace(/\D/g, "").slice(0, 5);
 const paraNumero = (texto: string) => (texto === "" ? null : Number(texto));
@@ -46,6 +46,7 @@ export function JanelaProduto({
   const [minimo, setMinimo] = useState(produto?.estoqueMinimo === null || produto?.estoqueMinimo === undefined ? "" : String(produto.estoqueMinimo));
   // Só para produto novo: quantas unidades tem agora (vazio = não controla estoque).
   const [estoqueInicial, setEstoqueInicial] = useState("");
+  const [noDelivery, setNoDelivery] = useState(produto?.delivery ?? false);
 
   const m = preco ? margem(preco, custo) : null;
   const nivel = nivelMargem(m);
@@ -75,6 +76,7 @@ export function JanelaProduto({
       preco,
       custo,
       estoqueMinimo: controla ? paraNumero(minimo) : null,
+      delivery: noDelivery,
     }).then((id) => {
       // O estoque inicial espera o produto existir no banco.
       if (id && !produto && inicial !== null) void registrarEstoque(id, "contagem", inicial, "Estoque inicial");
@@ -171,6 +173,14 @@ export function JanelaProduto({
               </p>
             </>
           )}
+        </div>
+        <div className="rounded-[16px] bg-sunk px-4 py-3 ring-1 ring-line">
+          <Chave
+            ligada={noDelivery}
+            aoMudar={setNoDelivery}
+            rotulo="Aparece no delivery"
+            dica="O cliente vê e pode pedir pelo cardápio online"
+          />
         </div>
         {produto ? (
           <SecaoEstoque produto={produto} minimo={minimo} aoMudarMinimo={setMinimo} />

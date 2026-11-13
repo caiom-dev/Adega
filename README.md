@@ -13,6 +13,10 @@ que também funciona no computador.
   perda (quebrou, venceu, consumo) com o prejuízo do mês, mínimo por produto com a lista "Acabando" no Início
   e histórico de cada mudança com quem fez.
 - **Produtos**: preço, custo e margem calculada na hora.
+- **Delivery**: cardápio público em `/pedir` (sem login, confirma 18 anos), carrinho, entrega por bairro com taxa
+  ou retirada, pagamento na entrega com troco e página para o cliente acompanhar o pedido. Na adega, a tela Delivery
+  recebe os pedidos ao vivo com som e notificação, e cada um passa por aceito, saiu e entregue (vira venda e baixa o
+  estoque) ou recusado com motivo. Em Ajustes: chave de aceitar pedidos, horário, pedido mínimo, bairros e produtos do cardápio.
 - **Relatórios**: lucro, vendas por dia, horário e dia da semana, formas de pagamento, equipe (quem vendeu e quem cancelou) e histórico com cancelamento.
 - **Ajustes**: pessoas e PINs, mesas e balcões, taxas da maquininha, categorias e cópia de segurança.
 - **Acesso**: entrada por PIN de 4 números. O **dono** vê tudo; o **atendente** só vê o Caixa e nunca recebe o custo dos produtos.

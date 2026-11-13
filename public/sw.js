@@ -3,8 +3,8 @@
 // - Páginas: tenta a rede primeiro; sem rede, usa a última versão guardada.
 // - Arquivos do build (/_next/static): nunca mudam de conteúdo, então vêm do cache.
 
-const VERSAO = "pezao-v3";
-const PAGINAS = ["/", "/caixa", "/produtos", "/relatorios", "/ajustes"];
+const VERSAO = "pezao-v4";
+const PAGINAS = ["/", "/caixa", "/delivery", "/produtos", "/relatorios", "/ajustes"];
 
 self.addEventListener("install", (evento) => {
   evento.waitUntil(
@@ -63,4 +63,17 @@ self.addEventListener("fetch", (evento) => {
         ),
     );
   }
+});
+
+// Tocar na notificação de pedido novo abre (ou traz para frente) a tela de delivery.
+self.addEventListener("notificationclick", (evento) => {
+  evento.notification.close();
+  const destino = (evento.notification.data && evento.notification.data.url) || "/delivery";
+  evento.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((janelas) => {
+      const aberta = janelas.find((j) => new URL(j.url).origin === self.location.origin);
+      if (aberta) return aberta.focus().then((j) => j.navigate(destino));
+      return self.clients.openWindow(destino);
+    }),
+  );
 });

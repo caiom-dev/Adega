@@ -20,4 +20,8 @@ histórico completo fica lá (Database > Migrations).
 - `migrations/006_estoque_completo.sql`: perda de estoque (guarda o custo da época) e contagem de vários
   produtos de uma vez (`registrar_contagem`). Aplicada em 13/11/2026.
 
-`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 006.
+- `migrations/007_delivery.sql`: bairros com taxa, horário e chave do delivery, pedidos, e as funções
+  públicas (sem login) `cardapio_delivery`, `fazer_pedido` e `acompanhar_pedido`. `mudar_pedido` leva o
+  pedido de novo a entregue, e na entrega cria a venda (origem `delivery`) e baixa o estoque. Aplicada em 13/11/2026.
+
+`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 007.

@@ -16,6 +16,7 @@ import {
   vendasNoIntervalo,
 } from "../src/lib/calculos.ts";
 import { margem, nivelMargem } from "../src/lib/dinheiro.ts";
+import { formatarTelefone, trocoALevar } from "../src/lib/pedidos.ts";
 import type { Caixa, Comanda, ItemPedido, Produto, Venda } from "../src/lib/tipos.ts";
 
 const item = (produtoId: string, preco: number, qtd: number, custo: number | null): ItemPedido => ({
@@ -205,6 +206,7 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
     ativo,
     estoque,
     estoqueMinimo,
+    delivery: false,
   });
   assert.equal(estoqueBaixo(p(null, 5)), false);
   assert.equal(estoqueBaixo(p(6, 5)), false);
@@ -216,7 +218,7 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
 
 test("situação do estoque e entrada por embalagem", () => {
   const p = (estoque: number | null, estoqueMinimo: number | null): Produto => ({
-    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo,
+    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo, delivery: false,
   });
   assert.equal(situacaoEstoque(p(null, 3)), "sem-controle");
   assert.equal(situacaoEstoque(p(0, 3)), "zerado");
@@ -226,4 +228,14 @@ test("situação do estoque e entrada por embalagem", () => {
   assert.equal(unidadesDaEntrada(2, 12), 24);
   assert.equal(unidadesDaEntrada(5, 0), 5);
   assert.equal(custoPorUnidade(3990, 12), 333);
+});
+
+test("delivery: telefone formatado enquanto digita e troco a levar", () => {
+  assert.equal(formatarTelefone("11"), "(11");
+  assert.equal(formatarTelefone("1198765"), "(11) 9876-5");
+  assert.equal(formatarTelefone("1132345678"), "(11) 3234-5678");
+  assert.equal(formatarTelefone("(11) 98765-4321"), "(11) 98765-4321");
+  assert.equal(trocoALevar(3200, 5000), 1800);
+  assert.equal(trocoALevar(3200, null), 0);
+  assert.equal(trocoALevar(3200, 3000), 0);
 });
