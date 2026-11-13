@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BellRinging, Copy, Phone, WhatsappLogo } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
-import { NOME_PAGAMENTO, formatarTelefone, linkWhatsApp, trocoALevar } from "@/lib/delivery";
+import { NOME_PAGAMENTO, formatarCep, formatarTelefone, linkMapa, linkWhatsApp, textoDistancia, trocoALevar } from "@/lib/delivery";
 import { tempoDesde } from "@/lib/lugares";
 import { mudarPedido, nomePessoa, salvarDelivery, useLoja } from "@/lib/loja";
 import type { Pedido, SituacaoPedido } from "@/lib/tipos";
@@ -246,9 +246,20 @@ function CartaoPedido({
             <span className="font-medium text-yellow-ink">Retirar na loja</span>
           ) : (
             <>
-              {p.endereco}
+              <a
+                href={linkMapa(`${p.endereco}, ${p.bairro}${p.cep ? `, ${formatarCep(p.cep)}` : ""}`, p.lat !== null && p.lng !== null ? { lat: p.lat, lng: p.lng } : null)}
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-line underline-offset-4"
+              >
+                {p.endereco}
+              </a>
               {p.complemento && ` · ${p.complemento}`}
-              <span className="block text-[13px] text-muted">{p.bairro}</span>
+              <span className="num block text-[13px] text-muted">
+                {[p.bairro, p.cep && formatarCep(p.cep)].filter(Boolean).join(" · ")}
+                {" · "}
+                {p.distanciaM === null ? <span className="text-yellow-ink">distância não conferida</span> : `${textoDistancia(p.distanciaM)} da adega`}
+              </span>
             </>
           )}
         </p>

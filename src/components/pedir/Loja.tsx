@@ -3,11 +3,23 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CaretLeft, CaretRight, MagnifyingGlass, Minus, Plus, ShoppingBag } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, MagnifyingGlass, MapPin, Minus, NavigationArrow, Plus, ShoppingBag } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
-import { DIAS, buscarCardapio, enviarPedido, formatarTelefone, textoDia, type Cardapio } from "@/lib/delivery";
+import {
+  DIAS,
+  buscarCardapio,
+  distanciaM,
+  enviarPedido,
+  formatarCep,
+  formatarTelefone,
+  textoDia,
+  textoDistancia,
+  type Cardapio,
+  type Ponto,
+} from "@/lib/delivery";
+import { buscarCep, minhaLocalizacao, type EnderecoCep } from "@/lib/endereco";
 import type { PagamentoPedido } from "@/lib/tipos";
-import { Botao, CampoDinheiro, CampoEscolha, CampoTexto, Cartao, NumeroAnimado, Segmentado } from "@/components/ui";
+import { Botao, CampoDinheiro, CampoTexto, Cartao, NumeroAnimado, Segmentado } from "@/components/ui";
 
 /* Tudo que fica no aparelho do cliente: só conveniência, nada depende disso. */
 const CHAVE = {
@@ -326,6 +338,8 @@ function ListaProdutos({
         subtitulo={
           <>
             <span className="text-green-ink">Aberto agora</span>
+            {cardapio.entrega &&
+              ` · entrega ${cardapio.entrega.taxa > 0 ? reais(cardapio.entrega.taxa) : "grátis"} até ${textoDistancia(cardapio.entrega.raioKm * 1000)}`}
             {cardapio.pedidoMinimo > 0 && ` · pedido mínimo ${reais(cardapio.pedidoMinimo)}`}
           </>
         }
@@ -403,10 +417,15 @@ function ListaProdutos({
 interface DadosCliente {
   nome: string;
   telefone: string;
-  bairroId: string;
-  endereco: string;
+  cep: string;
+  rua: string;
+  numero: string;
   complemento: string;
 }
+
+const CLIENTE_VAZIO: DadosCliente = { nome: "", telefone: "", cep: "", rua: "", numero: "", complemento: "" };
+
+type BuscaCep = { estado: "vazio" | "buscando" | "nao_existe" | "sem_rede" } | { estado: "achou"; endereco: EnderecoCep };
 
 const PAGAMENTOS: { id: PagamentoPedido; nome: string }[] = [
   { id: "pix", nome: "Pix" },
@@ -429,9 +448,12 @@ function Carrinho({
   aoEnviar: (token: string, numero: number) => void;
   aoAtualizar: () => void;
 }) {
-  const [dados, setDados] = useState<DadosCliente>(() =>
-    ler(CHAVE.cliente, { nome: "", telefone: "", bairroId: "", endereco: "", complemento: "" }),
-  );
+  const [dados, setDados] = useState<DadosCliente>(() => ({ ...CLIENTE_VAZIO, ...ler<Partial<DadosCliente>>(CHAVE.cliente, {}) }));
+  // Resultado da última consulta, junto com o CEP consultado.
+  const [consulta, setConsulta] = useState<{ cep: string; busca: BuscaCep } | null>(null);
+  const [gps, setGps] = useState<Ponto | null>(null);
+  const [buscandoGps, setBuscandoGps] = useState(false);
+  const [gpsNegado, setGpsNegado] = useState(false);
   const [retirada, setRetirada] = useState(false);
   const [pagamento, setPagamento] = useState<PagamentoPedido | null>(null);
   const [trocoPara, setTrocoPara] = useState<number | null>(null);
@@ -445,9 +467,16 @@ function Carrinho({
     .map(([id, qtd]) => ({ produto: porId.get(id)!, qtd }))
     .filter((l) => l.produto);
   const subtotal = linhas.reduce((s, l) => s + l.produto.preco * l.qtd, 0);
-  const bairro = cardapio.bairros.find((b) => b.id === dados.bairroId);
+  const area = cardapio.entrega;
   const entrega = !retirada;
-  const taxa = entrega && bairro ? bairro.taxa : 0;
+  const taxa = entrega && area ? area.taxa : 0;
+  const cepDigitos = dados.cep.replace(/\D/g, "");
+  const busca: BuscaCep =
+    cepDigitos.length !== 8 ? { estado: "vazio" } : consulta?.cep === cepDigitos ? consulta.busca : { estado: "buscando" };
+  const achado = busca.estado === "achou" ? busca.endereco : null;
+  const ponto = gps ?? achado?.ponto ?? null;
+  const distancia = area && ponto ? distanciaM(area, ponto) : null;
+  const fora = area !== null && distancia !== null && distancia > area.raioKm * 1000;
   const total = subtotal + taxa;
   const faltaMinimo = Math.max(0, cardapio.pedidoMinimo - subtotal);
 
@@ -455,13 +484,45 @@ function Carrinho({
   const erros = {
     nome: dados.nome.trim().length < 2 ? "Escreva seu nome" : null,
     telefone: fone.length < 10 ? "Telefone com DDD" : null,
-    bairro: entrega && !bairro ? "Escolha o bairro" : null,
-    endereco: entrega && dados.endereco.trim().length < 5 ? "Rua e número" : null,
+    cep: !entrega ? null : cepDigitos.length !== 8 || busca.estado === "nao_existe" ? "Confira o CEP" : null,
+    rua: entrega && dados.rua.trim().length < 3 ? "Escreva a rua" : null,
+    numero: entrega && !dados.numero.trim() ? "Número" : null,
+    area: entrega && (!area || fora) ? "Fora da área" : null,
     pagamento: !pagamento ? "Escolha como vai pagar" : null,
     troco: pagamento === "dinheiro" && trocoPara !== null && trocoPara < total ? `Precisa ser ${reais(total)} ou mais` : null,
   };
   const valido = Object.values(erros).every((e) => !e) && faltaMinimo === 0 && linhas.length > 0;
   const mostrar = (e: string | null) => (tentou ? e : null);
+
+  // Busca o endereço quando o CEP fica completo.
+  useEffect(() => {
+    if (cepDigitos.length !== 8) return;
+    let vale = true;
+    void buscarCep(cepDigitos).then((r) => {
+      if (!vale) return;
+      if (r === null) return setConsulta({ cep: cepDigitos, busca: { estado: "nao_existe" } });
+      if (r === undefined) return setConsulta({ cep: cepDigitos, busca: { estado: "sem_rede" } });
+      setConsulta({ cep: cepDigitos, busca: { estado: "achou", endereco: r } });
+      if (r.rua) {
+        setDados((d) => {
+          const novo = { ...d, rua: r.rua };
+          guardar(CHAVE.cliente, novo);
+          return novo;
+        });
+      }
+    });
+    return () => {
+      vale = false;
+    };
+  }, [cepDigitos]);
+
+  async function usarGps() {
+    setBuscandoGps(true);
+    const p = await minhaLocalizacao();
+    setBuscandoGps(false);
+    setGps(p);
+    setGpsNegado(!p);
+  }
 
   function mudar(campo: keyof DadosCliente, valor: string) {
     setDados((d) => {
@@ -481,8 +542,11 @@ function Carrinho({
       telefone: fone,
       maior: true,
       retirada,
-      bairroId: entrega ? dados.bairroId : undefined,
-      endereco: entrega ? dados.endereco : undefined,
+      cep: entrega ? cepDigitos : undefined,
+      bairro: entrega ? (achado?.bairro ?? "") : undefined,
+      lat: entrega && ponto ? ponto.lat : undefined,
+      lng: entrega && ponto ? ponto.lng : undefined,
+      endereco: entrega ? `${dados.rua.trim()}, ${dados.numero.trim()}` : undefined,
       complemento: entrega ? dados.complemento : undefined,
       itens: linhas.map((l) => ({ produtoId: l.produto.id, qtd: l.qtd })),
       pagamento,
@@ -544,44 +608,67 @@ function Carrinho({
           />
         )}
 
-        {entrega && (
-          <>
-            {cardapio.bairros.length === 0 ? (
-              <p className="rounded-[14px] bg-yellow-soft px-4 py-3 text-[15px] text-yellow-ink">
-                A entrega ainda não está disponível.{cardapio.retirada ? " Você pode retirar na loja." : ""}
-              </p>
-            ) : (
-              <>
-                <CampoEscolha rotulo="Bairro" value={dados.bairroId} onChange={(e) => mudar("bairroId", e.target.value)}>
-                  <option value="">Escolha o bairro</option>
-                  {cardapio.bairros.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.nome} · {b.taxa > 0 ? `entrega ${reais(b.taxa)}` : "entrega grátis"}
-                    </option>
-                  ))}
-                </CampoEscolha>
-                {mostrar(erros.bairro) && <p className="-mt-2 text-[13px] text-red-ink">{erros.bairro}</p>}
-                <p className="-mt-2 text-[13px] text-muted">Seu bairro não está na lista? Ainda não entregamos aí.</p>
-              </>
-            )}
-            <CampoTexto
-              rotulo="Endereço"
-              placeholder="Rua e número"
-              autoComplete="street-address"
-              maxLength={160}
-              value={dados.endereco}
-              onChange={(e) => mudar("endereco", e.target.value)}
-              erro={mostrar(erros.endereco)}
-            />
-            <CampoTexto
-              rotulo="Complemento"
-              placeholder="Apartamento, bloco, ponto de referência"
-              maxLength={80}
-              value={dados.complemento}
-              onChange={(e) => mudar("complemento", e.target.value)}
-            />
-          </>
-        )}
+        {entrega &&
+          (!area ? (
+            <p className="rounded-[14px] bg-yellow-soft px-4 py-3 text-[15px] text-yellow-ink">
+              A entrega ainda não está disponível.{cardapio.retirada ? " Você pode retirar na loja." : ""}
+            </p>
+          ) : (
+            <>
+              <div>
+                <CampoTexto
+                  rotulo="CEP"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  placeholder="00000-000"
+                  value={formatarCep(dados.cep)}
+                  onChange={(e) => {
+                    mudar("cep", e.target.value.replace(/\D/g, "").slice(0, 8));
+                    setGps(null);
+                    setGpsNegado(false);
+                  }}
+                  erro={mostrar(erros.cep)}
+                />
+                <SituacaoEndereco
+                  busca={busca}
+                  distancia={distancia}
+                  fora={fora}
+                  raioKm={area.raioKm}
+                  gps={gps !== null}
+                  buscandoGps={buscandoGps}
+                  gpsNegado={gpsNegado}
+                  retirada={cardapio.retirada}
+                  aoUsarGps={() => void usarGps()}
+                  aoRetirar={() => setRetirada(true)}
+                />
+              </div>
+              <CampoTexto
+                rotulo="Rua"
+                autoComplete="address-line1"
+                maxLength={120}
+                value={dados.rua}
+                onChange={(e) => mudar("rua", e.target.value)}
+                erro={mostrar(erros.rua)}
+              />
+              <div className="grid grid-cols-[7rem_1fr] gap-3">
+                <CampoTexto
+                  rotulo="Número"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={dados.numero}
+                  onChange={(e) => mudar("numero", e.target.value)}
+                  erro={mostrar(erros.numero)}
+                />
+                <CampoTexto
+                  rotulo="Complemento"
+                  placeholder="Apto, bloco, referência"
+                  maxLength={80}
+                  value={dados.complemento}
+                  onChange={(e) => mudar("complemento", e.target.value)}
+                />
+              </div>
+            </>
+          ))}
 
         <CampoTexto
           rotulo="Seu nome"
@@ -648,7 +735,7 @@ function Carrinho({
           {entrega && (
             <div className="flex justify-between text-body">
               <dt>Entrega</dt>
-              <dd>{bairro ? (taxa > 0 ? reais(taxa) : "grátis") : "escolha o bairro"}</dd>
+              <dd>{taxa > 0 ? reais(taxa) : "grátis"}</dd>
             </div>
           )}
           <div className="flex items-baseline justify-between pt-1 text-ink">
@@ -673,12 +760,103 @@ function Carrinho({
             type="submit"
             variante="principal"
             className="mx-auto h-14 w-full max-w-xl rounded-full text-[17px]"
-            disabled={enviando || linhas.length === 0 || faltaMinimo > 0}
+            disabled={enviando || linhas.length === 0 || faltaMinimo > 0 || (entrega && (!area || fora))}
           >
             {enviando ? "Enviando" : `Enviar pedido · ${reais(total)}`}
           </Botao>
         </div>
       </form>
     </Tela>
+  );
+}
+
+/** O que achamos pelo CEP: bairro, cidade e se fica dentro da área de entrega. */
+function SituacaoEndereco({
+  busca,
+  distancia,
+  fora,
+  raioKm,
+  gps,
+  buscandoGps,
+  gpsNegado,
+  retirada,
+  aoUsarGps,
+  aoRetirar,
+}: {
+  busca: BuscaCep;
+  distancia: number | null;
+  fora: boolean;
+  raioKm: number;
+  gps: boolean;
+  buscandoGps: boolean;
+  gpsNegado: boolean;
+  retirada: boolean;
+  aoUsarGps: () => void;
+  aoRetirar: () => void;
+}) {
+  const botaoGps = (texto: string) => (
+    <button
+      type="button"
+      onClick={aoUsarGps}
+      disabled={buscandoGps}
+      className="aperta mt-1 flex h-10 items-center gap-1.5 text-[15px] font-medium text-accent"
+    >
+      <NavigationArrow size={16} weight="fill" className="shrink-0" />
+      {buscandoGps ? "Pegando sua localização" : texto}
+    </button>
+  );
+
+  if (busca.estado === "vazio") {
+    return (
+      <a
+        href="https://buscacepinter.correios.com.br/app/endereco/index.php"
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-block text-[13px] text-muted underline underline-offset-2"
+      >
+        Não sei meu CEP
+      </a>
+    );
+  }
+  if (busca.estado === "buscando") return <p className="mt-2 text-[13px] text-muted">Buscando o endereço</p>;
+  if (busca.estado === "nao_existe") return <p className="mt-2 text-[13px] text-red-ink">Não achamos esse CEP. Confira os números.</p>;
+
+  const endereco = busca.estado === "achou" ? busca.endereco : null;
+  const lugar = endereco ? [endereco.bairro, endereco.cidade].filter(Boolean).join(", ") : "";
+
+  return (
+    <div aria-live="polite" className="mt-2">
+      {lugar && <p className="text-[13px] text-body">{lugar}</p>}
+      {distancia === null ? (
+        <>
+          <p className="text-[13px] text-muted">
+            {busca.estado === "sem_rede"
+              ? "Não conseguimos conferir o CEP agora. Pode seguir: a adega confere o endereço."
+              : "Não achamos a localização desse CEP. Pode seguir: a adega confere o endereço."}
+          </p>
+          {botaoGps("Usar minha localização")}
+          {gpsNegado && <p className="text-[13px] text-muted">Sem acesso à localização. Tudo bem, a adega confere pelo endereço.</p>}
+        </>
+      ) : fora ? (
+        <div className="mt-1 rounded-[14px] bg-yellow-soft px-4 py-3 text-[15px] text-yellow-ink">
+          <p className="num">
+            {gps ? "Sua localização fica" : "Esse CEP fica"} a {textoDistancia(distancia)} da adega. Entregamos até{" "}
+            {textoDistancia(raioKm * 1000)}.
+          </p>
+          {!gps && botaoGps("Está mais perto? Usar minha localização")}
+          {gpsNegado && <p className="text-[13px]">Sem acesso à localização.</p>}
+          {retirada && (
+            <button type="button" onClick={aoRetirar} className="aperta mt-1 flex h-10 items-center gap-1.5 text-[15px] font-medium">
+              <MapPin size={16} weight="fill" className="shrink-0" />
+              Retirar na loja
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="num text-[13px] text-green-ink">
+          {textoDistancia(distancia)} da adega{gps ? ", pela sua localização" : ""}. Entregamos aí.
+        </p>
+      )}
+    </div>
   );
 }

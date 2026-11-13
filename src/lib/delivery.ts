@@ -15,7 +15,8 @@ export interface Cardapio {
   horario: DiaHorario[];
   pedidoMinimo: Centavos;
   retirada: boolean;
-  bairros: { id: string; nome: string; taxa: Centavos }[];
+  /** null = a adega ainda não definiu de onde sai a entrega: só retirada. */
+  entrega: { taxa: Centavos; raioKm: number; lat: number; lng: number; endereco: string } | null;
   categorias: { id: string; nome: string }[];
   produtos: { id: string; nome: string; preco: Centavos; categoriaId: string | null }[];
 }
@@ -25,7 +26,11 @@ export interface DadosPedido {
   telefone: string;
   maior: boolean;
   retirada: boolean;
-  bairroId?: string;
+  cep?: string;
+  bairro?: string;
+  /** Localização do cliente (do CEP ou do GPS). Sem ela, a adega confere pelo endereço. */
+  lat?: number;
+  lng?: number;
   endereco?: string;
   complemento?: string;
   itens: { produtoId: string; qtd: number }[];
@@ -60,7 +65,9 @@ const ERROS_PEDIDO: Record<string, string> = {
   telefone_invalido: "Confira o telefone com DDD",
   pagamento_invalido: "Escolha a forma de pagamento",
   sem_retirada: "A retirada na loja não está disponível agora",
-  bairro_invalido: "Escolha o bairro",
+  sem_entrega: "A entrega não está disponível agora",
+  cep_invalido: "Confira o CEP",
+  fora_da_area: "Esse endereço fica fora da nossa área de entrega",
   endereco_invalido: "Escreva o endereço com número",
   limite: "Você já tem pedidos em andamento. Aguarde a entrega ou fale com a adega",
   itens_invalidos: "O carrinho está vazio",

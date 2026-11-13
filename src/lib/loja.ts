@@ -5,7 +5,6 @@ import { banco } from "./banco";
 import { subtotal } from "./calculos";
 import { lerIdLugar } from "./lugares";
 import type {
-  Bairro,
   Caixa,
   ConfigDelivery,
   Categoria,
@@ -51,8 +50,7 @@ const vazio: Estado = {
   vendasProntas: false,
   caixa: null,
   equipe: [],
-  delivery: { aberto: false, pedidoMinimo: 0, retirada: true, horario: [] },
-  bairros: [],
+  delivery: { aberto: false, pedidoMinimo: 0, retirada: true, horario: [], lojaEndereco: "", lojaLat: null, lojaLng: null, raioKm: 5, taxaEntrega: 0 },
   pedidos: [],
 };
 
@@ -122,10 +120,13 @@ const paraConfigDelivery = (l: Linha): ConfigDelivery => ({
   pedidoMinimo: (l.pedido_minimo as number) ?? 0,
   retirada: l.retirada !== false,
   horario: (l.horario as ConfigDelivery["horario"]) ?? [],
+  lojaEndereco: (l.loja_endereco as string) ?? "",
+  lojaLat: (l.loja_lat as number | null) ?? null,
+  lojaLng: (l.loja_lng as number | null) ?? null,
+  raioKm: Number(l.raio_km ?? 5),
+  taxaEntrega: (l.taxa_entrega as number) ?? 0,
 });
 
-const paraBairro = (l: Linha): Bairro => ({ id: l.id as string, nome: l.nome as string, taxa: l.taxa as number, ativo: l.ativo as boolean });
-const ordenarBairros = (linhas: Linha[]) => linhas.map(paraBairro).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 
 const paraPedido = (l: Linha): Pedido => ({
   id: l.id as string,
@@ -138,6 +139,10 @@ const paraPedido = (l: Linha): Pedido => ({
   endereco: (l.endereco as string) ?? "",
   complemento: (l.complemento as string) ?? "",
   bairro: (l.bairro_nome as string) ?? "",
+  cep: (l.cep as string) ?? "",
+  lat: (l.lat as number | null) ?? null,
+  lng: (l.lng as number | null) ?? null,
+  distanciaM: (l.distancia_m as number | null) ?? null,
   itens: (l.itens as Pedido["itens"]) ?? [],
   subtotal: l.subtotal as number,
   taxa: l.taxa as number,
@@ -301,7 +306,7 @@ async function carregar(usuario: string) {
     }
     const papel = eu.papel as Papel;
     if (papel === "dono") await carregarCustos();
-    const [categorias, produtos, formas, config, comandas, caixa, equipe, bairros, pedidos] = await Promise.all([
+    const [categorias, produtos, formas, config, comandas, caixa, equipe, pedidos] = await Promise.all([
       tudo("categorias"),
       tudo("produtos"),
       tudo("formas"),
@@ -309,7 +314,6 @@ async function carregar(usuario: string) {
       tudo("comandas"),
       banco.rpc("caixa_atual"),
       buscarEquipe(papel),
-      tudo("bairros"),
       buscarPedidos(),
     ]);
     if (config.error) throw config.error;
@@ -329,7 +333,6 @@ async function carregar(usuario: string) {
       caixa: paraCaixa(caixa.data as Linha | null),
       equipe,
       delivery: paraConfigDelivery(config.data),
-      bairros: ordenarBairros(bairros),
       pedidos,
     });
     void escutar();
@@ -408,7 +411,7 @@ const recarregando = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Junta várias mudanças seguidas da mesma tabela numa busca só. */
 function recarregar(
-  tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe" | "bairros" | "pedidos",
+  tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe" | "pedidos",
 ) {
   clearTimeout(recarregando.get(tabela));
   recarregando.set(
@@ -416,7 +419,6 @@ function recarregar(
     setTimeout(async () => {
       try {
         if (tabela === "categorias") por({ categorias: ordenarCategorias(await tudo("categorias")) });
-        if (tabela === "bairros") por({ bairros: ordenarBairros(await tudo("bairros")) });
         if (tabela === "pedidos") por({ pedidos: await buscarPedidos() });
         if (tabela === "caixa") {
           const { data, error } = await banco.rpc("caixa_atual");
@@ -501,9 +503,6 @@ async function escutar() {
           if (m.eventType === "INSERT") ouvintesPedido.forEach((avisar) => avisar(pedido));
           return;
         }
-        case "bairros":
-          recarregar("bairros");
-          return;
         case "caixas":
         case "movimentos_caixa":
           recarregar("caixa");
@@ -529,7 +528,7 @@ async function escutar() {
     })
     .subscribe((estado) => {
       // Voltou a conexão depois de uma queda: busca o que mudou enquanto estava fora.
-      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe", "bairros", "pedidos"] as const).forEach(recarregar);
+      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe", "pedidos"] as const).forEach(recarregar);
       if (estado === "SUBSCRIBED") escutouAntes = true;
     });
 }
@@ -1081,30 +1080,12 @@ export function salvarDelivery(parcial: Partial<ConfigDelivery>) {
   if (parcial.pedidoMinimo !== undefined) linha.pedido_minimo = parcial.pedidoMinimo;
   if (parcial.retirada !== undefined) linha.retirada = parcial.retirada;
   if (parcial.horario !== undefined) linha.horario = parcial.horario;
+  if (parcial.lojaEndereco !== undefined) linha.loja_endereco = parcial.lojaEndereco;
+  if (parcial.lojaLat !== undefined) linha.loja_lat = parcial.lojaLat;
+  if (parcial.lojaLng !== undefined) linha.loja_lng = parcial.lojaLng;
+  if (parcial.raioKm !== undefined) linha.raio_km = parcial.raioKm;
+  if (parcial.taxaEntrega !== undefined) linha.taxa_entrega = parcial.taxaEntrega;
   return gravar(banco.from("configuracao").update(linha).eq("id", 1), "configuracao");
-}
-
-export function salvarBairro(nome: string, taxa: number, id?: string) {
-  const alvo = id ?? novoId();
-  const bairro: Bairro = { id: alvo, nome: nome.trim(), taxa, ativo: true };
-  mudar((e) => ({
-    ...e,
-    bairros: (id ? e.bairros.map((b) => (b.id === id ? bairro : b)) : [...e.bairros, bairro]).sort((a, b) =>
-      a.nome.localeCompare(b.nome, "pt-BR"),
-    ),
-  }));
-  return gravar(
-    id
-      ? banco.from("bairros").update({ nome: bairro.nome, taxa }).eq("id", id)
-      : banco.from("bairros").insert({ id: alvo, nome: bairro.nome, taxa }),
-    "bairros",
-  );
-}
-
-/** Não apaga: pedidos antigos continuam apontando para o bairro. */
-export function removerBairro(id: string) {
-  mudar((e) => ({ ...e, bairros: e.bairros.map((b) => (b.id === id ? { ...b, ativo: false } : b)) }));
-  return gravar(banco.from("bairros").update({ ativo: false }).eq("id", id), "bairros");
 }
 
 /** Liga ou desliga vários produtos no cardápio do delivery de uma vez. */

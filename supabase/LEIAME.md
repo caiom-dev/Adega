@@ -24,4 +24,8 @@ histórico completo fica lá (Database > Migrations).
   públicas (sem login) `cardapio_delivery`, `fazer_pedido` e `acompanhar_pedido`. `mudar_pedido` leva o
   pedido de novo a entregue, e na entrega cria a venda (origem `delivery`) e baixa o estoque. Aplicada em 13/11/2026.
 
-`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 007.
+- `migrations/008_delivery_raio.sql`: troca os bairros por raio a partir da adega com taxa única (endereço,
+  coordenadas, `raio_km` e `taxa_entrega` em `configuracao`). O pedido guarda CEP, coordenadas e distância;
+  `fazer_pedido` recusa com `fora_da_area` o que passa do raio. A tabela `bairros` ficou sem uso. Aplicada em 13/11/2026.
+
+`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 008.

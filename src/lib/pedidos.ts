@@ -36,3 +36,33 @@ export function textoDia(d: DiaHorario): string {
 export function trocoALevar(total: Centavos, trocoPara: Centavos | null): Centavos {
   return trocoPara === null ? 0 : Math.max(0, trocoPara - total);
 }
+
+export interface Ponto {
+  lat: number;
+  lng: number;
+}
+
+/** Distância em linha reta, em metros (mesma conta que o banco faz para conferir o raio). */
+export function distanciaM(a: Ponto, b: Ponto): number {
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return Math.round(2 * 6371000 * Math.asin(Math.sqrt(h)));
+}
+
+/** "850 m" ou "3,2 km". */
+export function textoDistancia(metros: number): string {
+  if (metros < 1000) return `${Math.max(10, Math.round(metros / 10) * 10)} m`;
+  return `${(metros / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km`;
+}
+
+/** "13058343" vira "13058-343". Aceita o texto parcial enquanto digita. */
+export function formatarCep(texto: string): string {
+  const d = texto.replace(/\D/g, "").slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+}
+
+/** Abre o endereço no mapa do celular (Google Maps ou o app padrão). */
+export function linkMapa(endereco: string, ponto?: Ponto | null): string {
+  const q = ponto ? `${ponto.lat},${ponto.lng}` : endereco;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}

@@ -141,14 +141,6 @@ export interface MovimentoEstoque {
 
 /* Delivery */
 
-export interface Bairro {
-  id: string;
-  nome: string;
-  /** Taxa de entrega. */
-  taxa: Centavos;
-  ativo: boolean;
-}
-
 /** Um dia do horário do delivery. null = fechado no dia. "fecha" menor que "abre" passa da meia-noite. */
 export type DiaHorario = { abre: string; fecha: string } | null;
 
@@ -160,6 +152,13 @@ export interface ConfigDelivery {
   retirada: boolean;
   /** 7 dias, de domingo a sábado. Lista vazia = sem horário (vale só a chave). */
   horario: DiaHorario[];
+  /** Endereço de onde sai a entrega e o raio atendido, em linha reta. */
+  lojaEndereco: string;
+  lojaLat: number | null;
+  lojaLng: number | null;
+  raioKm: number;
+  /** Taxa única de entrega. */
+  taxaEntrega: Centavos;
 }
 
 export type SituacaoPedido = "novo" | "aceito" | "saiu" | "entregue" | "recusado";
@@ -184,6 +183,11 @@ export interface Pedido {
   endereco: string;
   complemento: string;
   bairro: string;
+  cep: string;
+  lat: number | null;
+  lng: number | null;
+  /** Distância da adega em metros. null = não conferida (CEP sem localização). */
+  distanciaM: number | null;
   itens: ItemDelivery[];
   subtotal: Centavos;
   taxa: Centavos;
@@ -236,7 +240,6 @@ export interface Estado {
   /** Nomes de quem usa o app, para mostrar quem fez o quê. */
   equipe: Membro[];
   delivery: ConfigDelivery;
-  bairros: Bairro[];
   /** Pedidos em andamento e os concluídos nas últimas 24 horas. */
   pedidos: Pedido[];
 }
