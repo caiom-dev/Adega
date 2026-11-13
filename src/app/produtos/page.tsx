@@ -69,7 +69,7 @@ function Produtos() {
       />
 
       <div className="flex flex-col gap-2 sm:flex-row">
-        <label className="flex h-11 flex-1 items-center gap-2 rounded-[14px] bg-sunk px-3 ring-1 ring-line transition-shadow duration-150 focus-within:ring-2 focus-within:ring-accent">
+        <label className="flex h-11 shrink-0 items-center gap-2 sm:flex-1 rounded-[14px] bg-sunk px-3 ring-1 ring-line transition-shadow duration-150 focus-within:ring-2 focus-within:ring-accent">
           <MagnifyingGlass size={18} className="text-muted" />
           <input
             type="search"

@@ -1,18 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { DownloadSimple, Minus, Plus, Trash, UploadSimple } from "@phosphor-icons/react";
-import {
-  apagarVendas,
-  definirQuantidade,
-  exportarDados,
-  importarDados,
-  removerCategoria,
-  salvarCategoria,
-  salvarTaxa,
-  useLoja,
-} from "@/lib/loja";
-import { Aviso, Botao, Cabecalho, Cartao, Janela } from "@/components/ui";
+import { useState } from "react";
+import { DownloadSimple, Key, Minus, Plus, SignOut, Trash } from "@phosphor-icons/react";
+import { definirQuantidade, exportarDados, removerCategoria, salvarCategoria, salvarTaxa, useLoja } from "@/lib/loja";
+import { sair } from "@/lib/acessos";
+import { Aviso, Botao, Cabecalho, Cartao } from "@/components/ui";
+import { JanelaPessoa, Pessoas } from "@/components/Pessoas";
 
 function Secao({ titulo, descricao, children, i }: { titulo: string; descricao: string; children: React.ReactNode; i: number }) {
   return (
@@ -50,10 +43,8 @@ function CampoTaxa({ valor, aoSalvar, rotulo }: { valor: number; aoSalvar: (v: n
 export default function AjustesPage() {
   const loja = useLoja();
   const [novaCategoria, setNovaCategoria] = useState("");
-  const [confirmarApagar, setConfirmarApagar] = useState(false);
-  const [arquivo, setArquivo] = useState<string | null>(null);
+  const [trocandoPin, setTrocandoPin] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; erro?: boolean } | null>(null);
-  const campoArquivo = useRef<HTMLInputElement>(null);
 
   const emUso = (id: string) => loja.produtos.some((p) => p.ativo && p.categoriaId === id);
   const nomeNovo = novaCategoria.trim();
@@ -78,7 +69,9 @@ export default function AjustesPage() {
     <div className="mx-auto max-w-3xl px-4 pb-10 md:px-8">
       <Cabecalho titulo="Ajustes" />
 
-      <Secao i={0} titulo="Mesas e balcões" descricao="Quantos aparecem no caixa">
+      <Pessoas />
+
+      <Secao i={1} titulo="Mesas e balcões" descricao="Quantos aparecem no caixa">
         <Cartao>
           <ul className="divide-y divide-line">
             {(["mesa", "balcao"] as const).map((t) => {
@@ -116,7 +109,7 @@ export default function AjustesPage() {
         </Cartao>
       </Secao>
 
-      <Secao i={1} titulo="Taxas da maquininha" descricao="Quanto a maquininha desconta em cada forma de pagamento. Entra na conta do lucro">
+      <Secao i={2} titulo="Taxas da maquininha" descricao="Quanto a maquininha desconta em cada forma de pagamento. Entra na conta do lucro">
         <Cartao>
           <ul className="divide-y divide-line">
             {loja.formas.map((f) => (
@@ -129,7 +122,7 @@ export default function AjustesPage() {
         </Cartao>
       </Secao>
 
-      <Secao i={2} titulo="Categorias" descricao="Só dá para remover uma categoria sem produtos">
+      <Secao i={3} titulo="Categorias" descricao="Só dá para remover uma categoria sem produtos">
         <Cartao>
           <ul className="divide-y divide-line">
             {loja.categorias.map((c) => (
@@ -190,102 +183,44 @@ export default function AjustesPage() {
       </Secao>
 
       <Secao
-        i={3}
-        titulo="Cópia de segurança"
-        descricao="Os dados ficam só neste aparelho. Baixe uma cópia de vez em quando para não perder produtos e vendas"
-      >
-        <div className="flex flex-wrap gap-2">
-          <Botao className="h-11" onClick={baixarCopia}>
-            <DownloadSimple size={16} weight="bold" />
-            Baixar cópia
-          </Botao>
-          <Botao className="h-11" onClick={() => campoArquivo.current?.click()}>
-            <UploadSimple size={16} weight="bold" />
-            Restaurar de um arquivo
-          </Botao>
-          <input
-            ref={campoArquivo}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (!f) return;
-              if (f.size > 20_000_000) return avisar("O arquivo é grande demais", true);
-              setArquivo(await f.text());
-            }}
-          />
-        </div>
-      </Secao>
-
-      <Secao
         i={4}
-        titulo="Vendas de teste"
-        descricao={`Apaga as ${loja.vendas.length} vendas registradas neste aparelho. Produtos e categorias ficam`}
+        titulo="Cópia de segurança"
+        descricao="Os dados ficam guardados no sistema. A cópia serve para você ter um arquivo seu."
       >
-        <Botao variante="perigo" className="h-11" disabled={loja.vendas.length === 0} onClick={() => setConfirmarApagar(true)}>
-          Apagar vendas
+        <Botao className="h-11" onClick={baixarCopia}>
+          <DownloadSimple size={16} weight="bold" />
+          Baixar cópia
         </Botao>
       </Secao>
 
-      <Janela
-        aberta={confirmarApagar}
-        aoFechar={() => setConfirmarApagar(false)}
-        titulo="Apagar todas as vendas"
-        rodape={
-          <div className="flex gap-2">
-            <Botao className="h-12 flex-1" onClick={() => setConfirmarApagar(false)}>
-              Cancelar
-            </Botao>
-            <Botao
-              variante="perigo"
-              className="h-12 flex-1"
-              onClick={() => {
-                apagarVendas();
-                setConfirmarApagar(false);
-                avisar("Vendas apagadas");
-              }}
-            >
-              Apagar {loja.vendas.length}
-            </Botao>
+      <Secao i={5} titulo="Sua conta" descricao="Quem está usando o caixa agora">
+        <Cartao>
+          <div className="py-3 pr-3 pl-5">
+            <p className="truncate text-[15px] text-ink">{loja.pessoa?.nome}</p>
+            <p className="text-[13px] text-muted">{loja.pessoa?.papel === "dono" ? "Dono" : "Atendente"}</p>
           </div>
-        }
-      >
-        <p className="text-[15px] text-body">
-          As {loja.vendas.length} vendas somem dos relatórios e a numeração volta para 1. Não dá para desfazer. Se quiser guardar,
-          baixe uma cópia antes.
-        </p>
-      </Janela>
+        </Cartao>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Botao className="h-11" onClick={() => setTrocandoPin(true)}>
+            <Key size={16} weight="bold" />
+            Trocar meu PIN
+          </Botao>
+          <Botao className="h-11" onClick={() => void sair()}>
+            <SignOut size={16} weight="bold" />
+            Sair
+          </Botao>
+        </div>
+      </Secao>
 
-      <Janela
-        aberta={arquivo !== null}
-        aoFechar={() => setArquivo(null)}
-        titulo="Restaurar cópia"
-        rodape={
-          <div className="flex gap-2">
-            <Botao className="h-12 flex-1" onClick={() => setArquivo(null)}>
-              Cancelar
-            </Botao>
-            <Botao
-              variante="perigo"
-              className="h-12 flex-1"
-              onClick={() => {
-                const erro = arquivo ? importarDados(arquivo) : "Arquivo vazio";
-                setArquivo(null);
-                avisar(erro ?? "Cópia restaurada", !!erro);
-              }}
-            >
-              Substituir tudo
-            </Botao>
-          </div>
-        }
-      >
-        <p className="text-[15px] text-body">
-          Os produtos, categorias, taxas e vendas deste aparelho serão trocados pelos do arquivo. O que existe hoje aqui é
-          apagado.
-        </p>
-      </Janela>
+      {trocandoPin && loja.pessoa && (
+        <JanelaPessoa
+          pessoa={{ id: loja.pessoa.id, nome: loja.pessoa.nome }}
+          euMesmo
+          titulo="Trocar meu PIN"
+          aoFechar={() => setTrocandoPin(false)}
+          aoMudou={avisar}
+        />
+      )}
 
       {aviso && (
         <Aviso>

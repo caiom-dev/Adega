@@ -11,7 +11,7 @@ export interface Produto {
   nome: string;
   categoriaId: string;
   preco: Centavos;
-  /** null quando o custo ainda não foi cadastrado. */
+  /** null quando o custo ainda não foi cadastrado. O atendente sempre recebe null. */
   custo: Centavos | null;
   ativo: boolean;
 }
@@ -68,10 +68,30 @@ export interface Venda {
   criadaEm: string;
   /** Preenchido quando a venda foi cancelada. Ela continua no histórico, mas sai das contas. */
   canceladaEm?: string;
+  /**
+   * "yooga": venda importada do sistema antigo. Não tem itens, então conta para
+   * faturamento, horário e forma de pagamento, mas fica fora do lucro.
+   */
+  origem?: "yooga";
+}
+
+export type Papel = "dono" | "atendente";
+
+export interface Pessoa {
+  id: string;
+  nome: string;
+  papel: Papel;
 }
 
 export interface Estado {
-  versao: 2;
+  /** "carregando" até saber se há sessão; "fora" pede o PIN; "dentro" mostra o app. */
+  situacao: "carregando" | "fora" | "dentro";
+  /** Quem está usando o app agora. */
+  pessoa: Pessoa | null;
+  /** Aviso de falha ao salvar (sem internet, por exemplo). null quando está tudo certo. */
+  erro: string | null;
+  /** O dono abriu o link de recuperação do e-mail e precisa escolher um PIN novo. */
+  recuperando: boolean;
   categorias: Categoria[];
   produtos: Produto[];
   formas: FormaPagamento[];
@@ -81,6 +101,8 @@ export interface Estado {
   /** Última aba aberta no caixa neste aparelho. */
   abaCaixa: TipoLugar;
   comandas: Comanda[];
+  /** Só o dono recebe vendas. Para o atendente a lista fica vazia. */
   vendas: Venda[];
-  proximoNumero: number;
+  /** false enquanto as vendas (inclusive o histórico do Yooga) ainda estão chegando. */
+  vendasProntas: boolean;
 }

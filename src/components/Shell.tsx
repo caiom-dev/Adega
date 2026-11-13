@@ -2,9 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useSyncExternalStore } from "react";
 import { CashRegister, ChartBar, GearSix, House, Package, type Icon } from "@phosphor-icons/react";
-import { useLoja } from "@/lib/loja";
+import { sair } from "@/lib/acessos";
+import { fecharErro, useLoja } from "@/lib/loja";
+import { Entrada, NovoPin } from "@/components/Entrada";
 
 const ITENS: { href: string; nome: string; icone: Icon }[] = [
   { href: "/", nome: "Início", icone: House },
@@ -18,13 +21,129 @@ function ativo(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+/* Logo da tela de carregamento: pulsa de leve, só com opacity. */
+const ESTILO_PULSO = `
+@media (prefers-reduced-motion: no-preference) {
+  .logo-pulsa { animation: logo-pulsa 1.8s ease-in-out infinite; }
+}
+@keyframes logo-pulsa {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+`;
+
+const FAIXA =
+  "vidro vidro-flutua estala fixed inset-x-3 top-[calc(env(safe-area-inset-top)+12px)] z-50 origin-top rounded-[20px] px-4 py-3 text-sm md:inset-x-auto md:right-6 md:w-96";
+
+function inscreverRede(avisar: () => void) {
+  window.addEventListener("online", avisar);
+  window.addEventListener("offline", avisar);
+  return () => {
+    window.removeEventListener("online", avisar);
+    window.removeEventListener("offline", avisar);
+  };
+}
+
+/* Uma faixa só: erro ao salvar tem prioridade (some ao fechar) e, sem ele, o aviso de sem internet. */
+function Avisos() {
+  const erro = useLoja().erro;
+  const semRede = !useSyncExternalStore(
+    inscreverRede,
+    () => navigator.onLine,
+    () => true,
+  );
+
+  if (erro) {
+    return (
+      <div role="alert" className={`${FAIXA} flex items-center gap-3`}>
+        <p className="min-w-0 flex-1 text-ink">{erro}</p>
+        <button
+          type="button"
+          onClick={fecharErro}
+          className="vidro-leve aperta h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-ink"
+        >
+          Fechar
+        </button>
+      </div>
+    );
+  }
+
+  if (semRede) {
+    return (
+      <div role="status" className={`${FAIXA} text-ink`}>
+        Sem internet. O app só funciona conectado.
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const indice = Math.max(0, ITENS.findIndex((i) => ativo(pathname, i.href)));
-  const abertas = useLoja().comandas.length;
+  const router = useRouter();
+  const loja = useLoja();
+  const { situacao, pessoa, recuperando } = loja;
+
+  const atendente = pessoa?.papel === "atendente";
+  // Atendente só tem o Caixa. O dono vê o menu inteiro.
+  const itens = atendente ? ITENS.filter((i) => i.href === "/caixa") : ITENS;
+  const indice = Math.max(0, itens.findIndex((i) => ativo(pathname, i.href)));
+  const abertas = loja.comandas.length;
+
+  const logado = situacao === "dentro" && !recuperando;
+  const redirecionando = logado && atendente && !pathname.startsWith("/caixa");
+
+  useEffect(() => {
+    if (redirecionando) router.replace("/caixa");
+  }, [redirecionando, router]);
+
+  if (situacao === "carregando") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <style>{ESTILO_PULSO}</style>
+        <Image
+          src="/logo-p.webp"
+          alt="Adega do Pezão"
+          width={240}
+          height={217}
+          priority
+          className="logo-pulsa h-auto w-36"
+        />
+        <Avisos />
+        {/* A página continua montada, escondida: o Next precisa dela para preparar a navegação. */}
+        <div hidden>{children}</div>
+      </div>
+    );
+  }
+
+  if (situacao === "fora") {
+    return (
+      <>
+        <Avisos />
+        <Entrada />
+        {/* A página continua montada, escondida: o Next precisa dela para preparar a navegação. */}
+        <div hidden>{children}</div>
+      </>
+    );
+  }
+
+  // Abriu o link de recuperação do e-mail: escolhe um PIN novo antes de usar o app.
+  if (recuperando && pessoa) {
+    return (
+      <>
+        <Avisos />
+        <NovoPin pessoaId={pessoa.id} />
+        {/* A página continua montada, escondida: o Next precisa dela para preparar a navegação. */}
+        <div hidden>{children}</div>
+      </>
+    );
+  }
 
   return (
     <div className="min-h-dvh">
+      <Avisos />
+
       {/* Computador: painel de vidro fixo na lateral */}
       <aside className="vidro fixed inset-y-3 left-3 z-30 hidden w-60 flex-col rounded-[28px] p-3 md:flex">
         <Link href="/" className="aperta mx-auto mt-2 mb-4 block" aria-label="Adega do Pezão, início">
@@ -37,7 +156,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             className="vidro-leve desliza absolute inset-x-0 top-0 h-11 rounded-[14px]"
             style={{ transform: `translateY(${indice * 48}px)` }}
           />
-          {ITENS.map(({ href, nome, icone: Icone }) => {
+          {itens.map(({ href, nome, icone: Icone }) => {
             const marcado = ativo(pathname, href);
             return (
               <Link
@@ -60,28 +179,52 @@ export function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <p className="mt-auto px-3 pb-2 text-xs text-muted">Caixa, produtos e lucro da loja</p>
+        <div className="mt-auto flex items-center justify-between gap-2 px-3 pb-2">
+          <span className="min-w-0 truncate text-sm text-body">{pessoa?.nome}</span>
+          <button
+            type="button"
+            onClick={() => void sair()}
+            className="vidro-leve aperta h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-ink"
+          >
+            Sair
+          </button>
+        </div>
       </aside>
 
       <main className="min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-[264px]">
+        {/* Celular: o atendente não tem o menu de ajustes, então o "Sair" fica numa faixa fina no topo */}
+        {atendente && (
+          <div className="flex items-center justify-between gap-3 px-4 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:hidden">
+            <span className="min-w-0 truncate text-sm text-body">{pessoa?.nome}</span>
+            <button
+              type="button"
+              onClick={() => void sair()}
+              className="vidro-leve aperta h-8 shrink-0 rounded-full px-3 text-[13px] font-medium text-ink"
+            >
+              Sair
+            </button>
+          </div>
+        )}
         {/* A chave troca a cada página, então o conteúdo novo entra com a animação de tela */}
-        <div key={pathname} className="tela">
-          {children}
-        </div>
+        {!redirecionando && (
+          <div key={pathname} className="tela">
+            {children}
+          </div>
+        )}
       </main>
 
       {/* Celular (PWA): cápsula de vidro flutuando acima da barra de gestos */}
       <nav
         aria-label="Navegação"
-        className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden"
+        className={`fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden ${atendente ? "hidden" : ""}`}
       >
         <div className="vidro vidro-flutua relative mx-auto flex h-16 max-w-md rounded-full p-1">
           <span
             aria-hidden
             className="vidro-leve desliza absolute inset-y-1 left-1 rounded-full"
-            style={{ width: "calc((100% - 8px) / 5)", transform: `translateX(${indice * 100}%)` }}
+            style={{ width: `calc((100% - 8px) / ${itens.length})`, transform: `translateX(${indice * 100}%)` }}
           />
-          {ITENS.map(({ href, nome, icone: Icone }) => {
+          {itens.map(({ href, nome, icone: Icone }) => {
             const marcado = ativo(pathname, href);
             return (
               <Link

@@ -197,14 +197,14 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
           comanda={comanda}
           formas={loja.formas}
           aoFechar={() => setCobrando(false)}
-          aoFinalizar={(pagamentos) => {
-            const venda = finalizarVenda(id, pagamentos);
+          aoFinalizar={async (pagamentos) => {
+            const venda = await finalizarVenda(id, pagamentos);
+            // Se falhou, o aviso já apareceu e a janela fica aberta para tentar de novo.
+            if (!venda) return;
             setCobrando(false);
             setPedidoAberto(false);
-            if (venda) {
-              aoVender(venda);
-              voltar();
-            }
+            aoVender(venda);
+            voltar();
           }}
         />
       )}

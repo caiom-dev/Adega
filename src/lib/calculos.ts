@@ -36,10 +36,15 @@ export interface LinhaForma {
 export interface Resumo {
   pedidos: number;
   vendas: Centavos;
+  /** Parte de "vendas" que tem itens e por isso entra na conta do lucro (fora o histórico do Yooga). */
+  vendasComItens: Centavos;
+  /** Quantas vendas do período vieram do Yooga, sem itens. */
+  pedidosSemItens: number;
+  /** Custo, taxas, lucro e margem contam só as vendas com itens. */
   custo: Centavos;
   taxas: Centavos;
   lucro: Centavos;
-  /** Margem sobre as vendas, em %. null quando não houve venda. */
+  /** Margem sobre as vendas com itens, em %. null quando não houve nenhuma. */
   margem: number | null;
   ticketMedio: Centavos;
   /** Unidades vendidas de produtos sem custo cadastrado (o lucro delas está superestimado). */
@@ -59,11 +64,24 @@ export function resumir(vendas: Venda[]): Resumo {
   let custo = 0;
   let taxas = 0;
   let unidadesSemCusto = 0;
+  let vendasComItens = 0;
+  let pedidosSemItens = 0;
 
   for (const v of vendas) {
     total += v.total;
-    const tv = taxasDaVenda(v);
-    taxas += tv;
+    for (const p of v.pagamentos) {
+      const linha = formas.get(p.formaId) ?? { formaId: p.formaId, nome: p.formaNome, valor: 0, taxas: 0 };
+      linha.valor += p.valor;
+      linha.taxas += Math.round((p.valor * p.taxa) / 100);
+      formas.set(p.formaId, linha);
+    }
+    // Venda importada do Yooga não tem itens: entra no faturamento, fica fora do lucro.
+    if (v.origem === "yooga") {
+      pedidosSemItens += 1;
+      continue;
+    }
+    vendasComItens += v.total;
+    taxas += taxasDaVenda(v);
     const fator = v.subtotal > 0 ? v.total / v.subtotal : 1;
 
     for (const i of v.itens) {
@@ -87,23 +105,18 @@ export function resumir(vendas: Venda[]): Resumo {
       linha.semCusto ||= i.custo === null;
       produtos.set(i.produtoId, linha);
     }
-
-    for (const p of v.pagamentos) {
-      const linha = formas.get(p.formaId) ?? { formaId: p.formaId, nome: p.formaNome, valor: 0, taxas: 0 };
-      linha.valor += p.valor;
-      linha.taxas += Math.round((p.valor * p.taxa) / 100);
-      formas.set(p.formaId, linha);
-    }
   }
 
-  const lucro = total - custo - taxas;
+  const lucro = vendasComItens - custo - taxas;
   return {
     pedidos: vendas.length,
     vendas: total,
+    vendasComItens,
+    pedidosSemItens,
     custo,
     taxas,
     lucro,
-    margem: total > 0 ? (lucro / total) * 100 : null,
+    margem: vendasComItens > 0 ? (lucro / vendasComItens) * 100 : null,
     ticketMedio: vendas.length > 0 ? Math.round(total / vendas.length) : 0,
     unidadesSemCusto,
     porProduto: [...produtos.values()].sort((a, b) => b.lucro - a.lucro),

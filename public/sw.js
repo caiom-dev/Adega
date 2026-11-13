@@ -3,7 +3,7 @@
 // - Páginas: tenta a rede primeiro; sem rede, usa a última versão guardada.
 // - Arquivos do build (/_next/static): nunca mudam de conteúdo, então vêm do cache.
 
-const VERSAO = "pezao-v2";
+const VERSAO = "pezao-v3";
 const PAGINAS = ["/", "/caixa", "/produtos", "/relatorios", "/ajustes"];
 
 self.addEventListener("install", (evento) => {

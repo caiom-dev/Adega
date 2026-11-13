@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
 import { totalComanda } from "@/lib/calculos";
@@ -23,7 +23,7 @@ export function JanelaPagamento({
   comanda: Comanda;
   formas: FormaPagamento[];
   aoFechar: () => void;
-  aoFinalizar: (pagamentos: Pagamento[]) => void;
+  aoFinalizar: (pagamentos: Pagamento[]) => Promise<void>;
 }) {
   const total = totalComanda(comanda);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
@@ -32,6 +32,21 @@ export function JanelaPagamento({
   const troco = Math.max(0, pago - total);
   const [valor, setValor] = useState<number | null>(total);
   const quitado = pago >= total;
+  const [finalizando, setFinalizando] = useState(false);
+  // Ref e não só estado: dois toques seguidos chegam antes do React redesenhar o botão.
+  const enviandoRef = useRef(false);
+
+  async function finalizar() {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
+    setFinalizando(true);
+    try {
+      await aoFinalizar(pagamentos);
+    } finally {
+      enviandoRef.current = false;
+      setFinalizando(false);
+    }
+  }
 
   // Notas maiores que o que falta: um toque já preenche "recebi 50" e o troco sai sozinho.
   const sugestoes = NOTAS.filter((n) => n > falta).slice(0, 3);
@@ -62,10 +77,16 @@ export function JanelaPagamento({
         <Botao
           variante="principal"
           className="h-[52px] w-full text-[17px]"
-          disabled={!quitado}
-          onClick={() => aoFinalizar(pagamentos)}
+          disabled={!quitado || finalizando}
+          onClick={finalizar}
         >
-          {quitado ? (troco > 0 ? `Finalizar e dar ${reais(troco)} de troco` : "Finalizar venda") : `Falta ${reais(falta)}`}
+          {finalizando
+            ? "Finalizando"
+            : quitado
+              ? troco > 0
+                ? `Finalizar e dar ${reais(troco)} de troco`
+                : "Finalizar venda"
+              : `Falta ${reais(falta)}`}
         </Botao>
       }
     >

@@ -126,7 +126,12 @@ function Relatorios() {
       )}
 
       {/* A chave refaz a entrada quando troca de aba */}
-      {agora && (
+      {agora && !loja.vendasProntas && (
+        <div className="mt-6">
+          <Carregando />
+        </div>
+      )}
+      {agora && loja.vendasProntas && (
         <div key={aba} className="mt-6">
           {aba === "lucro" && <AbaLucro r={r} nomePeriodo={nomePeriodo} temTaxa={loja.formas.some((f) => f.taxa > 0)} />}
           {aba === "vendas" && <AbaVendas vendas={vendas} r={r} faixa={faixa} />}
@@ -142,6 +147,24 @@ function Vazio({ children = "Nenhuma venda neste período" }: { children?: React
   return <p className="entra rounded-[20px] px-4 py-12 text-center text-[15px] text-muted ring-1 ring-line">{children}</p>;
 }
 
+/** Enquanto as vendas chegam do banco: blocos discretos no lugar dos números. */
+function Carregando() {
+  return (
+    <div role="status" aria-live="polite">
+      <p className="text-[15px] text-body">Carregando as vendas</p>
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-[92px] animate-pulse rounded-[20px] bg-sunk" />
+        ))}
+      </div>
+      <div className="mt-3 h-64 animate-pulse rounded-[20px] bg-sunk" />
+    </div>
+  );
+}
+
+const nomeDaVenda = (v: Venda) => (v.origem === "yooga" ? "Yooga" : v.comandaNome);
+const PASSO_HISTORICO = 100;
+
 function Numero({ rotulo, valor, detalhe, i }: { rotulo: string; valor: string; detalhe?: string; i: number }) {
   return (
     <Cartao className="entra p-4 md:p-5" style={{ "--i": i } as React.CSSProperties}>
@@ -155,22 +178,42 @@ function Numero({ rotulo, valor, detalhe, i }: { rotulo: string; valor: string; 
 /* ───────── Lucro ───────── */
 
 function AbaLucro({ r, nomePeriodo, temTaxa }: { r: Resumo; nomePeriodo: string; temTaxa: boolean }) {
+  // Período só com vendas do Yooga: não há lucro para calcular, então não mostra zeros.
+  const soYooga = r.vendasComItens === 0 && r.pedidosSemItens > 0;
+  const textoYooga =
+    r.pedidosSemItens === 1
+      ? "1 venda deste período veio do Yooga, sem a lista de produtos. Ela conta no faturamento, mas fica fora do lucro."
+      : `${r.pedidosSemItens} vendas deste período vieram do Yooga, sem a lista de produtos. Elas contam no faturamento, mas ficam fora do lucro.`;
+
   return (
     <>
       <Cartao className="entra p-5 md:p-8">
         <p className="text-[15px] text-body">Lucro {nomePeriodo}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <NumeroAnimado
-            valor={r.lucro}
-            formato={reais}
-            className={`num text-5xl leading-none font-semibold tracking-tight md:text-6xl ${r.lucro < 0 ? "text-red-ink" : "text-ink"}`}
-          />
-          {r.margem !== null && <Etiqueta nivel={nivelMargem(r.margem)}>margem de {pct(r.margem)}</Etiqueta>}
-        </div>
-        <p className="num mt-4 text-[15px] text-body">
-          {reais(r.vendas)} em vendas − {reais(r.custo)} de custo − {reais(r.taxas)} de taxas
-        </p>
+        {soYooga ? (
+          <p className="mt-3 text-[17px] text-ink">O lucro começa a contar a partir das vendas feitas neste sistema.</p>
+        ) : (
+          <>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <NumeroAnimado
+                valor={r.lucro}
+                formato={reais}
+                className={`num text-5xl leading-none font-semibold tracking-tight md:text-6xl ${r.lucro < 0 ? "text-red-ink" : "text-ink"}`}
+              />
+              {r.margem !== null && <Etiqueta nivel={nivelMargem(r.margem)}>margem de {pct(r.margem)}</Etiqueta>}
+            </div>
+            <p className="num mt-4 text-[15px] text-body">
+              {reais(r.vendasComItens)} em vendas − {reais(r.custo)} de custo − {reais(r.taxas)} de taxas
+            </p>
+          </>
+        )}
       </Cartao>
+
+      {r.pedidosSemItens > 0 && (
+        <div className="entra mt-3 flex gap-3 rounded-[16px] bg-yellow-soft px-4 py-3 text-[15px] text-yellow-ink" style={{ "--i": 1 } as React.CSSProperties}>
+          <Warning size={20} weight="fill" className="mt-0.5 shrink-0" />
+          <p>{textoYooga}</p>
+        </div>
+      )}
 
       {r.unidadesSemCusto > 0 && (
         <div className="entra mt-3 flex gap-3 rounded-[16px] bg-yellow-soft px-4 py-3 text-[15px] text-yellow-ink" style={{ "--i": 1 } as React.CSSProperties}>
@@ -195,17 +238,21 @@ function AbaLucro({ r, nomePeriodo, temTaxa }: { r: Resumo; nomePeriodo: string;
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Numero i={1} rotulo="Vendas" valor={reais(r.vendas)} />
+        <Numero i={1} rotulo="Vendas" valor={reais(soYooga ? r.vendas : r.vendasComItens)} />
         <Numero i={2} rotulo="Pedidos" valor={String(r.pedidos)} detalhe={`Ticket médio de ${reais(r.ticketMedio)}`} />
-        <Numero i={3} rotulo="Custo dos produtos" valor={reais(r.custo)} />
-        <Numero i={4} rotulo="Taxas da maquininha" valor={reais(r.taxas)} />
+        {!soYooga && (
+          <>
+            <Numero i={3} rotulo="Custo dos produtos" valor={reais(r.custo)} />
+            <Numero i={4} rotulo="Taxas da maquininha" valor={reais(r.taxas)} />
+          </>
+        )}
       </div>
 
       {r.pedidos === 0 ? (
         <div className="mt-6">
           <Vazio />
         </div>
-      ) : (
+      ) : !soYooga && (
         <section className="mt-8">
           <h2 className="text-xl font-semibold tracking-tight text-ink">De onde vem o lucro</h2>
           <Cartao className="entra mt-4 overflow-hidden" style={{ "--i": 5 } as React.CSSProperties}>
@@ -405,6 +452,14 @@ function AbaPagamentos({ r }: { r: Resumo }) {
 
 function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | null }) {
   const [busca, setBusca] = useState("");
+  const [limite, setLimite] = useState(PASSO_HISTORICO);
+  // Volta para as mais recentes quando a busca ou o período mudam.
+  const chaveFiltro = `${busca}|${faixa?.[0].getTime()}|${faixa?.[1].getTime()}`;
+  const [chaveVista, setChaveVista] = useState(chaveFiltro);
+  if (chaveVista !== chaveFiltro) {
+    setChaveVista(chaveFiltro);
+    setLimite(PASSO_HISTORICO);
+  }
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
@@ -427,8 +482,9 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
       .reverse();
   }, [todas, faixa, busca]);
 
-  const venda = todas.find((v) => v.id === abertaId) ?? null;
-  const canceladas = lista.filter((v) => v.canceladaEm).length;
+  const venda = useMemo(() => todas.find((v) => v.id === abertaId) ?? null, [todas, abertaId]);
+  const canceladas = useMemo(() => lista.filter((v) => v.canceladaEm).length, [lista]);
+  const visiveis = useMemo(() => lista.slice(0, limite), [lista, limite]);
 
   return (
     <>
@@ -457,7 +513,7 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
       ) : (
         <Cartao className="entra mt-4 overflow-hidden">
           <ul className="divide-y divide-line">
-            {lista.map((v) => (
+            {visiveis.map((v) => (
               <li key={v.id}>
                 <button
                   type="button"
@@ -470,7 +526,7 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
                   <span className="num w-10 shrink-0 font-mono text-[13px] text-muted">#{v.numero}</span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[15px] ${v.canceladaEm ? "text-muted line-through" : "text-ink"}`}>
-                      {v.comandaNome}
+                      {nomeDaVenda(v)}
                     </span>
                     <span className="num block truncate text-[13px] text-muted">
                       {formatoDataHora.format(new Date(v.criadaEm))} · {v.pagamentos.map((p) => p.formaNome).join(" + ")}
@@ -485,6 +541,16 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
               </li>
             ))}
           </ul>
+          {lista.length > limite && (
+            <div className="border-t border-line p-3">
+              <Botao className="h-11 w-full" onClick={() => setLimite((n) => n + PASSO_HISTORICO)}>
+                Mostrar mais
+              </Botao>
+              <p className="num mt-2 text-center text-[13px] text-muted">
+                Mostrando {visiveis.length.toLocaleString("pt-BR")} de {lista.length.toLocaleString("pt-BR")}
+              </p>
+            </div>
+          )}
         </Cartao>
       )}
 
@@ -524,7 +590,7 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
         {venda && (
           <div className="num text-[15px]">
             <p className="text-body">
-              {venda.comandaNome} · {formatoDataHora.format(new Date(venda.criadaEm))}
+              {nomeDaVenda(venda)} · {formatoDataHora.format(new Date(venda.criadaEm))}
             </p>
             {venda.canceladaEm && (
               <p className="mt-3 rounded-[14px] bg-red-soft px-4 py-3 text-red-ink">
@@ -536,16 +602,22 @@ function AbaHistorico({ todas, faixa }: { todas: Venda[]; faixa: [Date, Date] | 
                 A venda continua no histórico, riscada, e sai das contas de vendas e lucro
               </p>
             )}
-            <ul className="mt-4 divide-y divide-line rounded-[16px] bg-sunk px-4 ring-1 ring-line">
-              {venda.itens.map((i) => (
-                <li key={i.produtoId} className="flex justify-between gap-3 py-3">
-                  <span className="min-w-0 text-ink">
-                    {i.qtd}× {i.nome}
-                  </span>
-                  <span className="shrink-0 text-body">{reais(i.preco * i.qtd)}</span>
-                </li>
-              ))}
-            </ul>
+            {venda.origem === "yooga" ? (
+              <p className="mt-4 rounded-[14px] bg-sunk px-4 py-3 text-body">Venda do Yooga. A lista de produtos não foi importada.</p>
+            ) : (
+              venda.itens.length > 0 && (
+                <ul className="mt-4 divide-y divide-line rounded-[16px] bg-sunk px-4 ring-1 ring-line">
+                  {venda.itens.map((i) => (
+                    <li key={i.produtoId} className="flex justify-between gap-3 py-3">
+                      <span className="min-w-0 text-ink">
+                        {i.qtd}× {i.nome}
+                      </span>
+                      <span className="shrink-0 text-body">{reais(i.preco * i.qtd)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )
+            )}
             <dl className="mt-4 space-y-1 text-body">
               {venda.desconto > 0 && (
                 <div className="flex justify-between">
