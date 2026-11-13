@@ -1,5 +1,5 @@
 -- 003: fecha o que o verificador de segurança do Supabase apontou.
--- Ainda NÃO aplicada no projeto: rodar pelo painel (SQL Editor) ou pelo MCP do Supabase.
+-- Aplicada no projeto em 13/11/2026 (migração "seguranca").
 
 -- A chave de importação do Yooga não pode ser lida por ninguém de fora.
 -- Sem políticas, só o dono das tabelas lê: a função importar_lote (security definer) continua funcionando.
