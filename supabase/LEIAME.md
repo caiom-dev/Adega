@@ -8,3 +8,5 @@ histórico completo fica lá (Database > Migrations).
 - `../scripts/importar-yooga.mjs`: importação única dos produtos e das vendas do Yooga.
   A função `importar_lote` que ele usa está com o acesso fechado; para importar de novo
   é preciso liberar o acesso dela e usar a chave guardada em `interno.importacao`.
+- `migrations/003_seguranca.sql`: liga RLS em `interno.importacao`, tira o acesso de fora ao schema
+  `interno` e fixa o `search_path` de `interno.pin_valido`. **Pendente de aplicar no projeto.**
