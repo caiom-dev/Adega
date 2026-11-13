@@ -307,3 +307,23 @@ export function esperadoNaGaveta(caixa: Caixa, vendas: Venda[]): Centavos {
 export function estoqueBaixo(p: Produto): boolean {
   return p.ativo && p.estoque !== null && p.estoque <= (p.estoqueMinimo ?? 0);
 }
+
+export type SituacaoEstoque = "sem-controle" | "zerado" | "acabando" | "ok";
+
+/** Zerado = acabou (ou negativo). Acabando = chegou no mínimo. */
+export function situacaoEstoque(p: Produto): SituacaoEstoque {
+  if (p.estoque === null) return "sem-controle";
+  if (p.estoque <= 0) return "zerado";
+  if (p.estoque <= (p.estoqueMinimo ?? 0)) return "acabando";
+  return "ok";
+}
+
+/** "caixa com 12": quantidade de embalagens vezes unidades por embalagem. */
+export function unidadesDaEntrada(qtd: number, porEmbalagem: number): number {
+  return Math.max(0, Math.round(qtd)) * Math.max(1, Math.round(porEmbalagem));
+}
+
+/** Custo da unidade a partir do custo da embalagem, arredondado ao centavo. */
+export function custoPorUnidade(custoEmbalagem: number, porEmbalagem: number): number {
+  return Math.round(custoEmbalagem / Math.max(1, Math.round(porEmbalagem)));
+}

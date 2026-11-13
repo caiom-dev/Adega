@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowRight, CaretRight, Package, Warning } from "@phosphor-icons/react";
+import { ArrowRight, CaretRight, Warning } from "@phosphor-icons/react";
 import { pct, reais } from "@/lib/dinheiro";
-import { estoqueBaixo, intervalo, porDia, resumir, totalComanda, vendasNoIntervalo, type Resumo } from "@/lib/calculos";
+import { estoqueBaixo, intervalo, situacaoEstoque, porDia, resumir, totalComanda, vendasNoIntervalo, type Resumo } from "@/lib/calculos";
 import { nomeComanda, tempoDesde } from "@/lib/lugares";
 import { useLoja } from "@/lib/loja";
 import type { Venda } from "@/lib/tipos";
@@ -87,7 +87,8 @@ export default function InicioPage() {
   }, [loja.vendas]);
   const abertas = loja.comandas.filter((c) => c.itens.length > 0);
   const semCusto = loja.produtos.filter((p) => p.ativo && p.custo === null).length;
-  const baixos = loja.produtos.filter(estoqueBaixo).length;
+  // Acabando: zerados primeiro, depois os de menor saldo.
+  const acabando = loja.produtos.filter(estoqueBaixo).sort((a, b) => (a.estoque ?? 0) - (b.estoque ?? 0));
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 md:px-8">
@@ -151,18 +152,33 @@ export default function InicioPage() {
             </Link>
           )}
 
-          {baixos > 0 && (
-            <Link
-              href="/produtos?filtro=estoque-baixo"
-              className="aperta entra mt-3 flex items-center gap-3 rounded-[16px] bg-red-soft px-4 py-3 text-[15px] text-red-ink"
-              style={{ "--i": 4 } as React.CSSProperties}
-            >
-              <Package size={20} weight="fill" className="shrink-0" />
-              <span className="flex-1">
-                {baixos} {baixos === 1 ? "produto está" : "produtos estão"} com estoque baixo
-              </span>
-              <CaretRight size={14} weight="bold" />
-            </Link>
+          {acabando.length > 0 && (
+            <Cartao className="entra mt-3 overflow-hidden" style={{ "--i": 4 } as React.CSSProperties}>
+              <div className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-1">
+                <h2 className="text-[17px] font-medium text-ink">
+                  Acabando <span className="num text-body">· {acabando.length}</span>
+                </h2>
+                <Link href="/produtos?aba=estoque&filtro=acabando" className="shrink-0 text-[15px] text-accent">
+                  Ver estoque
+                </Link>
+              </div>
+              <ul className="num grid gap-x-6 px-5 pb-3 sm:grid-cols-2">
+                {acabando.slice(0, 6).map((p) => {
+                  const zerado = situacaoEstoque(p) === "zerado";
+                  return (
+                    <li key={p.id} className="flex items-center justify-between gap-3 border-b border-line py-2 text-[15px] last:border-0 sm:[&:nth-last-child(2):nth-child(odd)]:border-0">
+                      <span className="min-w-0 truncate text-ink">{p.nome}</span>
+                      <span className={`shrink-0 font-medium ${zerado ? "text-red-ink" : "text-yellow-ink"}`}>
+                        {zerado ? "acabou" : `${p.estoque} ${p.estoque === 1 ? "unidade" : "unidades"}`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {acabando.length > 6 && (
+                <p className="px-5 pb-4 text-[13px] text-muted">e mais {acabando.length - 6} na aba Estoque</p>
+              )}
+            </Cartao>
           )}
 
           <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">

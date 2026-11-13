@@ -23,7 +23,9 @@ const NOME_MOVIMENTO: Record<MovimentoEstoque["tipo"], string> = {
   cancelamento: "Venda cancelada",
   entrada: "Entrada",
   contagem: "Contagem",
+  perda: "Perda",
 };
+const MOTIVOS_PERDA = ["Quebrou", "Venceu", "Consumo da casa", "Outro"];
 
 export function JanelaProduto({
   produto,
@@ -211,7 +213,8 @@ function SecaoEstoque({
   const loja = useLoja();
   // O estoque muda ao vivo (vendas em outros aparelhos): lê sempre da loja, não da cópia que abriu a janela.
   const estoque = loja.produtos.find((p) => p.id === produto.id)?.estoque ?? null;
-  const [acao, setAcao] = useState<"entrada" | "contagem" | null>(null);
+  const [acao, setAcao] = useState<"entrada" | "contagem" | "perda" | null>(null);
+  const [motivoPerda, setMotivoPerda] = useState(MOTIVOS_PERDA[0]);
   const [qtd, setQtd] = useState("");
   const [motivo, setMotivo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -227,7 +230,7 @@ function SecaoEstoque({
     };
   }, [produto.id, estoque]);
 
-  function comecar(tipo: "entrada" | "contagem") {
+  function comecar(tipo: "entrada" | "contagem" | "perda") {
     setAcao(tipo);
     setQtd("");
     setMotivo("");
@@ -239,7 +242,8 @@ function SecaoEstoque({
     if (n === null || !acao || ocupado) return;
     setOcupado(true);
     setErro(null);
-    const falha = await registrarEstoque(produto.id, acao, n, motivo);
+    const texto = acao === "perda" ? (motivo.trim() ? `${motivoPerda} · ${motivo.trim()}` : motivoPerda) : motivo;
+    const falha = await registrarEstoque(produto.id, acao, n, texto);
     setOcupado(false);
     if (falha) setErro(falha);
     else setAcao(null);
@@ -269,12 +273,15 @@ function SecaoEstoque({
 
       {estoque !== null && !acao && (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Botao className="h-11" onClick={() => comecar("entrada")}>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <Botao className="h-11 px-2" onClick={() => comecar("entrada")}>
               Entrada
             </Botao>
-            <Botao className="h-11" onClick={() => comecar("contagem")}>
+            <Botao className="h-11 px-2" onClick={() => comecar("contagem")}>
               Contagem
+            </Botao>
+            <Botao className="h-11 px-2" onClick={() => comecar("perda")}>
+              Perda
             </Botao>
           </div>
           <div className="mt-3">
@@ -284,7 +291,7 @@ function SecaoEstoque({
               placeholder="0"
               value={minimo}
               onChange={(e) => aoMudarMinimo(soNumero(e.target.value))}
-              dica="O aviso de estoque baixo aparece no Início e em Produtos. Vale ao salvar"
+              dica="O aviso de estoque acabando aparece no Início e na aba Estoque. Vale ao salvar"
             />
           </div>
         </>
@@ -294,7 +301,13 @@ function SecaoEstoque({
         <div className="aparece mt-3 space-y-3">
           <CampoTexto
             rotulo={
-              acao === "entrada" ? "Quantas unidades chegaram" : estoque === null ? "Quantas unidades tem agora" : "Quantas unidades contou"
+              acao === "entrada"
+                ? "Quantas unidades chegaram"
+                : acao === "perda"
+                  ? "Quantas unidades perdeu"
+                  : estoque === null
+                    ? "Quantas unidades tem agora"
+                    : "Quantas unidades contou"
             }
             inputMode="numeric"
             autoFocus
@@ -308,6 +321,22 @@ function SecaoEstoque({
             }}
             dica={acao === "contagem" && estoque !== null ? "O número contado substitui o estoque atual" : undefined}
           />
+          {acao === "perda" && (
+            <div className="flex flex-wrap gap-2">
+              {MOTIVOS_PERDA.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  data-luz=""
+                  aria-pressed={motivoPerda === m}
+                  onClick={() => setMotivoPerda(m)}
+                  className={`aperta h-9 rounded-full px-4 text-sm font-medium ${motivoPerda === m ? "vidro-ambar" : "vidro-leve text-body"}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
           <CampoTexto
             rotulo="Observação"
             placeholder={acao === "entrada" ? "Fornecedor, nota..." : "Opcional"}
@@ -323,10 +352,16 @@ function SecaoEstoque({
             <Botao
               variante="principal"
               className="h-11 flex-1"
-              disabled={qtd === "" || (acao === "entrada" && qtd === "0") || ocupado}
+              disabled={qtd === "" || (acao !== "contagem" && Number(qtd) === 0) || ocupado}
               onClick={confirmar}
             >
-              {ocupado ? "Salvando" : acao === "entrada" ? "Somar ao estoque" : "Salvar contagem"}
+              {ocupado
+                ? "Salvando"
+                : acao === "entrada"
+                  ? "Somar ao estoque"
+                  : acao === "perda"
+                    ? "Tirar do estoque"
+                    : "Salvar contagem"}
             </Botao>
           </div>
         </div>

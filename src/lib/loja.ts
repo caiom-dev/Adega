@@ -779,6 +779,7 @@ const MENSAGENS_CAIXA: Record<string, string> = {
   valor_invalido: "Confira o valor",
   so_dono: "Só o dono pode fazer isso",
   produto_nao_encontrado: "Produto não encontrado",
+  sem_controle: "Este produto não controla estoque",
 };
 const SEM_REDE = "Não consegui falar com o sistema. Confira a internet";
 
@@ -858,13 +859,67 @@ export async function listarCaixas(limite = 60): Promise<CaixaFechado[] | null> 
 /** Entrada soma ao estoque; contagem troca o estoque pelo número contado. Devolve o erro, ou null. */
 export async function registrarEstoque(
   produtoId: string,
-  tipo: "entrada" | "contagem",
+  tipo: "entrada" | "contagem" | "perda",
   qtd: number,
   motivo = "",
 ): Promise<string | null> {
   const r = await chamar<number>("registrar_estoque", { p_produto: produtoId, p_tipo: tipo, p_qtd: qtd, p_motivo: motivo });
   if (r.ok) mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (p.id === produtoId ? { ...p, estoque: r.dados } : p)) }));
   return r.ok ? null : r.erro;
+}
+
+/** Contagem de prateleira de vários produtos de uma vez: entra tudo ou nada. */
+export async function registrarContagem(itens: { produtoId: string; qtd: number }[], motivo = ""): Promise<string | null> {
+  const r = await chamar<number>("registrar_contagem", { p_itens: itens, p_motivo: motivo });
+  if (r.ok) {
+    const novos = new Map(itens.map((i) => [i.produtoId, i.qtd]));
+    mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (novos.has(p.id) ? { ...p, estoque: novos.get(p.id)! } : p)) }));
+  }
+  return r.ok ? null : r.erro;
+}
+
+/** Troca só o custo do produto (usado na entrada de mercadoria). */
+export function salvarCusto(produtoId: string, custo: number) {
+  custos.set(produtoId, custo);
+  mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (p.id === produtoId ? { ...p, custo } : p)) }));
+  return gravar(banco.from("custos").upsert({ produto_id: produtoId, custo }), "custos");
+}
+
+export interface Perda {
+  id: string;
+  produtoId: string;
+  /** Unidades perdidas (positivo). */
+  qtd: number;
+  /** Custo da unidade na hora da perda. null se o produto não tinha custo. */
+  custo: number | null;
+  motivo: string;
+  pessoaId: string | null;
+  criadoEm: string;
+}
+
+/** Perdas registradas desde a data, da mais nova para a mais antiga. null = sem internet. */
+export async function perdasDesde(desde: Date): Promise<Perda[] | null> {
+  try {
+    const { data, error } = await banco
+      .from("movimentos_estoque")
+      .select("id,produto_id,qtd,custo,motivo,pessoa_id,criado_em")
+      .eq("tipo", "perda")
+      .gte("criado_em", desde.toISOString())
+      .order("criado_em", { ascending: false })
+      .limit(500);
+    if (error) return null;
+    return data.map((l) => ({
+      id: l.id,
+      produtoId: l.produto_id,
+      qtd: -l.qtd,
+      custo: l.custo,
+      motivo: l.motivo,
+      pessoaId: l.pessoa_id,
+      criadoEm: l.criado_em,
+    }));
+  } catch {
+    return null;
+  }
 }
 
 /** O produto deixa de ter estoque controlado. */
@@ -881,7 +936,7 @@ export async function movimentosEstoque(produtoId: string, limite = 15): Promise
   try {
     const { data, error } = await banco
       .from("movimentos_estoque")
-      .select("id,tipo,qtd,saldo,pessoa_id,motivo,criado_em")
+      .select("id,tipo,qtd,saldo,pessoa_id,motivo,criado_em,custo")
       .eq("produto_id", produtoId)
       .order("criado_em", { ascending: false })
       .limit(limite);
@@ -894,6 +949,7 @@ export async function movimentosEstoque(produtoId: string, limite = 15): Promise
       pessoaId: l.pessoa_id,
       motivo: l.motivo,
       criadoEm: l.criado_em,
+      custo: l.custo ?? null,
     }));
   } catch {
     return null;

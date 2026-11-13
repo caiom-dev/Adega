@@ -17,4 +17,7 @@ histórico completo fica lá (Database > Migrations).
   conferência às cegas), estoque por produto com histórico, e quem vendeu/cancelou. Aplicada em 13/11/2026.
 - `migrations/005_exige_caixa_aberto.sql`: venda do app só entra com caixa aberto. Aplicada em 13/11/2026.
 
-`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois a 004 e a 005.
+- `migrations/006_estoque_completo.sql`: perda de estoque (guarda o custo da época) e contagem de vários
+  produtos de uma vez (`registrar_contagem`). Aplicada em 13/11/2026.
+
+`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 006.

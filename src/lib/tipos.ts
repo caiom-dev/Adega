@@ -125,7 +125,7 @@ export interface ResumoCaixa {
 
 export interface MovimentoEstoque {
   id: string;
-  tipo: "venda" | "cancelamento" | "entrada" | "contagem";
+  tipo: "venda" | "cancelamento" | "entrada" | "contagem" | "perda";
   /** Quanto mudou: positivo entrou, negativo saiu. */
   qtd: number;
   /** Estoque depois da mudança. */
@@ -133,6 +133,8 @@ export interface MovimentoEstoque {
   pessoaId: string | null;
   motivo: string;
   criadoEm: string;
+  /** Custo da unidade na hora da perda. Só nas perdas. */
+  custo: number | null;
 }
 
 export type Papel = "dono" | "atendente";

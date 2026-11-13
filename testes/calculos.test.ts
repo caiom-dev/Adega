@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  custoPorUnidade,
   esperadoNaGaveta,
   estoqueBaixo,
   intervalo,
@@ -8,6 +9,8 @@ import {
   porDia,
   porPessoa,
   resumir,
+  situacaoEstoque,
+  unidadesDaEntrada,
   subtotal,
   totalComanda,
   vendasNoIntervalo,
@@ -209,4 +212,18 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
   assert.equal(estoqueBaixo(p(0, null)), true);
   assert.equal(estoqueBaixo(p(-2, null)), true);
   assert.equal(estoqueBaixo(p(0, null, false)), false);
+});
+
+test("situação do estoque e entrada por embalagem", () => {
+  const p = (estoque: number | null, estoqueMinimo: number | null): Produto => ({
+    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo,
+  });
+  assert.equal(situacaoEstoque(p(null, 3)), "sem-controle");
+  assert.equal(situacaoEstoque(p(0, 3)), "zerado");
+  assert.equal(situacaoEstoque(p(-1, null)), "zerado");
+  assert.equal(situacaoEstoque(p(3, 3)), "acabando");
+  assert.equal(situacaoEstoque(p(4, 3)), "ok");
+  assert.equal(unidadesDaEntrada(2, 12), 24);
+  assert.equal(unidadesDaEntrada(5, 0), 5);
+  assert.equal(custoPorUnidade(3990, 12), 333);
 });
