@@ -6,6 +6,7 @@ import { subtotal } from "./calculos";
 import { lerIdLugar } from "./lugares";
 import type {
   Caixa,
+  ConfigDelivery,
   Categoria,
   Comanda,
   Estado,
@@ -16,8 +17,10 @@ import type {
   MovimentoEstoque,
   Pagamento,
   Papel,
+  Pedido,
   Produto,
   ResumoCaixa,
+  SituacaoPedido,
   TipoLugar,
   Venda,
 } from "./tipos";
@@ -47,6 +50,8 @@ const vazio: Estado = {
   vendasProntas: false,
   caixa: null,
   equipe: [],
+  delivery: { aberto: false, pedidoMinimo: 0, retirada: true, horario: [], lojaEndereco: "", lojaLat: null, lojaLng: null, raioKm: 5, taxaEntrega: 0 },
+  pedidos: [],
 };
 
 const ouvintes = new Set<() => void>();
@@ -107,7 +112,61 @@ const paraProduto = (l: Linha): Produto => ({
   ativo: l.ativo as boolean,
   estoque: (l.estoque as number | null) ?? null,
   estoqueMinimo: (l.estoque_minimo as number | null) ?? null,
+  delivery: Boolean(l.delivery),
 });
+
+const paraConfigDelivery = (l: Linha): ConfigDelivery => ({
+  aberto: Boolean(l.delivery_aberto),
+  pedidoMinimo: (l.pedido_minimo as number) ?? 0,
+  retirada: l.retirada !== false,
+  horario: (l.horario as ConfigDelivery["horario"]) ?? [],
+  lojaEndereco: (l.loja_endereco as string) ?? "",
+  lojaLat: (l.loja_lat as number | null) ?? null,
+  lojaLng: (l.loja_lng as number | null) ?? null,
+  raioKm: Number(l.raio_km ?? 5),
+  taxaEntrega: (l.taxa_entrega as number) ?? 0,
+});
+
+
+const paraPedido = (l: Linha): Pedido => ({
+  id: l.id as string,
+  numero: Number(l.numero),
+  criadoEm: l.criado_em as string,
+  atualizadoEm: l.atualizado_em as string,
+  cliente: l.cliente as string,
+  telefone: l.telefone as string,
+  retirada: Boolean(l.retirada),
+  endereco: (l.endereco as string) ?? "",
+  complemento: (l.complemento as string) ?? "",
+  bairro: (l.bairro_nome as string) ?? "",
+  cep: (l.cep as string) ?? "",
+  lat: (l.lat as number | null) ?? null,
+  lng: (l.lng as number | null) ?? null,
+  distanciaM: (l.distancia_m as number | null) ?? null,
+  itens: (l.itens as Pedido["itens"]) ?? [],
+  subtotal: l.subtotal as number,
+  taxa: l.taxa as number,
+  total: l.total as number,
+  pagamento: l.pagamento as Pedido["pagamento"],
+  trocoPara: (l.troco_para as number | null) ?? null,
+  observacao: (l.observacao as string) ?? "",
+  situacao: l.situacao as SituacaoPedido,
+  motivo: (l.motivo as string) ?? "",
+  pessoaId: (l.pessoa_id as string | null) ?? null,
+});
+
+/** Pedidos em andamento, mais os das últimas 24 horas. Do mais novo para o mais antigo. */
+async function buscarPedidos(): Promise<Pedido[]> {
+  const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data, error } = await banco
+    .from("pedidos")
+    .select("*")
+    .or(`criado_em.gte.${desde},situacao.in.(novo,aceito,saiu)`)
+    .order("criado_em", { ascending: false })
+    .limit(300);
+  if (error) throw error;
+  return (data as Linha[]).map(paraPedido);
+}
 
 const paraForma = (l: Linha): FormaPagamento => ({ id: l.id as string, nome: l.nome as string, taxa: Number(l.taxa) });
 
@@ -247,7 +306,7 @@ async function carregar(usuario: string) {
     }
     const papel = eu.papel as Papel;
     if (papel === "dono") await carregarCustos();
-    const [categorias, produtos, formas, config, comandas, caixa, equipe] = await Promise.all([
+    const [categorias, produtos, formas, config, comandas, caixa, equipe, pedidos] = await Promise.all([
       tudo("categorias"),
       tudo("produtos"),
       tudo("formas"),
@@ -255,6 +314,7 @@ async function carregar(usuario: string) {
       tudo("comandas"),
       banco.rpc("caixa_atual"),
       buscarEquipe(papel),
+      buscarPedidos(),
     ]);
     if (config.error) throw config.error;
     if (caixa.error) throw caixa.error;
@@ -272,8 +332,10 @@ async function carregar(usuario: string) {
       vendasProntas: papel !== "dono",
       caixa: paraCaixa(caixa.data as Linha | null),
       equipe,
+      delivery: paraConfigDelivery(config.data),
+      pedidos,
     });
-    escutar();
+    void escutar();
     if (papel === "dono") void carregarVendas(usuario);
   } catch {
     usuarioCarregado = null;
@@ -348,13 +410,16 @@ async function carregarVendas(usuario: string) {
 const recarregando = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Junta várias mudanças seguidas da mesma tabela numa busca só. */
-function recarregar(tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe") {
+function recarregar(
+  tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe" | "pedidos",
+) {
   clearTimeout(recarregando.get(tabela));
   recarregando.set(
     tabela,
     setTimeout(async () => {
       try {
         if (tabela === "categorias") por({ categorias: ordenarCategorias(await tudo("categorias")) });
+        if (tabela === "pedidos") por({ pedidos: await buscarPedidos() });
         if (tabela === "caixa") {
           const { data, error } = await banco.rpc("caixa_atual");
           if (!error) por({ caixa: paraCaixa(data as Linha | null) });
@@ -374,7 +439,7 @@ function recarregar(tabela: "categorias" | "produtos" | "formas" | "configuracao
         }
         if (tabela === "configuracao") {
           const { data } = await banco.from("configuracao").select("*").eq("id", 1).single();
-          if (data) por({ mesas: data.mesas, balcoes: data.balcoes });
+          if (data) por({ mesas: data.mesas, balcoes: data.balcoes, delivery: paraConfigDelivery(data) });
         }
         if (tabela === "produtos" || tabela === "custos") {
           if (atual.pessoa?.papel === "dono") await carregarCustos();
@@ -387,8 +452,10 @@ function recarregar(tabela: "categorias" | "produtos" | "formas" | "configuracao
   );
 }
 
-function escutar() {
-  void banco.removeAllChannels();
+async function escutar() {
+  // Precisa esperar: removeAllChannels termina desconectando o socket, e derrubaria o canal novo
+  // se ele fosse aberto antes disso (era o que acontecia, e nada atualizava ao vivo).
+  await banco.removeAllChannels();
   banco
     .channel("loja")
     .on("postgres_changes", { event: "*", schema: "public" }, (m) => {
@@ -422,6 +489,20 @@ function escutar() {
           if (usuarioCarregado && (novo?.auth_id ?? velho?.auth_id) === usuarioCarregado) void carregar(usuarioCarregado);
           else recarregar("equipe");
           return;
+        case "pedidos": {
+          if (m.eventType === "DELETE") {
+            recarregar("pedidos");
+            return;
+          }
+          const pedido = paraPedido(novo);
+          mudar((e) => {
+            const existe = e.pedidos.some((p) => p.id === pedido.id);
+            const pedidos = existe ? e.pedidos.map((p) => (p.id === pedido.id ? pedido : p)) : [pedido, ...e.pedidos];
+            return { ...e, pedidos };
+          });
+          if (m.eventType === "INSERT") ouvintesPedido.forEach((avisar) => avisar(pedido));
+          return;
+        }
         case "caixas":
         case "movimentos_caixa":
           recarregar("caixa");
@@ -447,7 +528,7 @@ function escutar() {
     })
     .subscribe((estado) => {
       // Voltou a conexão depois de uma queda: busca o que mudou enquanto estava fora.
-      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe"] as const).forEach(recarregar);
+      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe", "pedidos"] as const).forEach(recarregar);
       if (estado === "SUBSCRIBED") escutouAntes = true;
     });
 }
@@ -492,6 +573,7 @@ export function salvarProduto(dados: Omit<Produto, "id" | "ativo" | "estoque"> &
         categoria_id: dados.categoriaId || null,
         preco: dados.preco,
         estoque_minimo: dados.estoqueMinimo,
+        delivery: dados.delivery,
         ativo: true,
       }),
       "produtos",
@@ -780,6 +862,10 @@ const MENSAGENS_CAIXA: Record<string, string> = {
   so_dono: "Só o dono pode fazer isso",
   produto_nao_encontrado: "Produto não encontrado",
   sem_controle: "Este produto não controla estoque",
+  situacao_invalida: "Esse pedido já mudou, talvez em outro aparelho",
+  motivo_obrigatorio: "Escreva o motivo",
+  pedido_nao_encontrado: "Pedido não encontrado",
+  forma_invalida: "Forma de pagamento inválida",
 };
 const SEM_REDE = "Não consegui falar com o sistema. Confira a internet";
 
@@ -960,4 +1046,52 @@ export async function movimentosEstoque(produtoId: string, limite = 15): Promise
 export function nomePessoa(equipe: Membro[], id: string | null | undefined): string {
   if (!id) return "Sem registro";
   return equipe.find((p) => p.id === id)?.nome ?? "Alguém";
+}
+
+/* Delivery */
+
+const ouvintesPedido = new Set<(p: Pedido) => void>();
+
+/** Avisa quando um pedido novo chega (para tocar o som e mostrar a notificação). */
+export function ouvirNovosPedidos(fn: (p: Pedido) => void) {
+  ouvintesPedido.add(fn);
+  return () => {
+    ouvintesPedido.delete(fn);
+  };
+}
+
+/** Muda a situação do pedido. Ao entregar, informe a forma usada de fato (dinheiro, pix, debito, credito). */
+export async function mudarPedido(id: string, situacao: SituacaoPedido, motivo = "", forma?: string): Promise<string | null> {
+  const r = await chamar<Linha>("mudar_pedido", { p_pedido: id, p_situacao: situacao, p_motivo: motivo, p_forma: forma ?? null });
+  if (!r.ok) {
+    recarregar("pedidos");
+    return r.erro;
+  }
+  const pedido = paraPedido(r.dados);
+  mudar((e) => ({ ...e, pedidos: e.pedidos.map((p) => (p.id === id ? pedido : p)) }));
+  return null;
+}
+
+/** Ajustes do delivery (só o dono). */
+export function salvarDelivery(parcial: Partial<ConfigDelivery>) {
+  mudar((e) => ({ ...e, delivery: { ...e.delivery, ...parcial } }));
+  const linha: Record<string, unknown> = {};
+  if (parcial.aberto !== undefined) linha.delivery_aberto = parcial.aberto;
+  if (parcial.pedidoMinimo !== undefined) linha.pedido_minimo = parcial.pedidoMinimo;
+  if (parcial.retirada !== undefined) linha.retirada = parcial.retirada;
+  if (parcial.horario !== undefined) linha.horario = parcial.horario;
+  if (parcial.lojaEndereco !== undefined) linha.loja_endereco = parcial.lojaEndereco;
+  if (parcial.lojaLat !== undefined) linha.loja_lat = parcial.lojaLat;
+  if (parcial.lojaLng !== undefined) linha.loja_lng = parcial.lojaLng;
+  if (parcial.raioKm !== undefined) linha.raio_km = parcial.raioKm;
+  if (parcial.taxaEntrega !== undefined) linha.taxa_entrega = parcial.taxaEntrega;
+  return gravar(banco.from("configuracao").update(linha).eq("id", 1), "configuracao");
+}
+
+/** Liga ou desliga vários produtos no cardápio do delivery de uma vez. */
+export function marcarDelivery(ids: string[], valor: boolean) {
+  if (ids.length === 0) return Promise.resolve(true);
+  const alvo = new Set(ids);
+  mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (alvo.has(p.id) ? { ...p, delivery: valor } : p)) }));
+  return gravar(banco.from("produtos").update({ delivery: valor }).in("id", ids), "produtos");
 }

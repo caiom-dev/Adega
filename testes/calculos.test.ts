@@ -16,6 +16,7 @@ import {
   vendasNoIntervalo,
 } from "../src/lib/calculos.ts";
 import { margem, nivelMargem } from "../src/lib/dinheiro.ts";
+import { distanciaM, formatarCep, formatarTelefone, textoDistancia, trocoALevar } from "../src/lib/pedidos.ts";
 import type { Caixa, Comanda, ItemPedido, Produto, Venda } from "../src/lib/tipos.ts";
 
 const item = (produtoId: string, preco: number, qtd: number, custo: number | null): ItemPedido => ({
@@ -205,6 +206,7 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
     ativo,
     estoque,
     estoqueMinimo,
+    delivery: false,
   });
   assert.equal(estoqueBaixo(p(null, 5)), false);
   assert.equal(estoqueBaixo(p(6, 5)), false);
@@ -216,7 +218,7 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
 
 test("situação do estoque e entrada por embalagem", () => {
   const p = (estoque: number | null, estoqueMinimo: number | null): Produto => ({
-    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo,
+    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo, delivery: false,
   });
   assert.equal(situacaoEstoque(p(null, 3)), "sem-controle");
   assert.equal(situacaoEstoque(p(0, 3)), "zerado");
@@ -226,4 +228,30 @@ test("situação do estoque e entrada por embalagem", () => {
   assert.equal(unidadesDaEntrada(2, 12), 24);
   assert.equal(unidadesDaEntrada(5, 0), 5);
   assert.equal(custoPorUnidade(3990, 12), 333);
+});
+
+test("delivery: telefone formatado enquanto digita e troco a levar", () => {
+  assert.equal(formatarTelefone("11"), "(11");
+  assert.equal(formatarTelefone("1198765"), "(11) 9876-5");
+  assert.equal(formatarTelefone("1132345678"), "(11) 3234-5678");
+  assert.equal(formatarTelefone("(11) 98765-4321"), "(11) 98765-4321");
+  assert.equal(trocoALevar(3200, 5000), 1800);
+  assert.equal(trocoALevar(3200, null), 0);
+  assert.equal(trocoALevar(3200, 3000), 0);
+});
+
+test("distância em linha reta a partir da adega", () => {
+  const adega = { lat: -22.9571447, lng: -47.1898468 };
+  // Mesma conta do banco (interno.distancia_m): Parque Taquaral dá 16.647 m.
+  assert.equal(distanciaM(adega, { lat: -22.8736457, lng: -47.0549405 }), 16647);
+  assert.equal(distanciaM(adega, adega), 0);
+});
+
+test("texto da distância e CEP", () => {
+  assert.equal(textoDistancia(843), "840 m");
+  assert.equal(textoDistancia(3240), "3,2 km");
+  assert.equal(textoDistancia(5000), "5 km");
+  assert.equal(formatarCep("13058343"), "13058-343");
+  assert.equal(formatarCep("1305"), "1305");
+  assert.equal(formatarCep("13058-3439"), "13058-343");
 });

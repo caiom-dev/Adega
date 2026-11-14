@@ -4,14 +4,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
-import { CashRegister, ChartBar, GearSix, House, Package, type Icon } from "@phosphor-icons/react";
+import { CashRegister, ChartBar, GearSix, House, Moped, Package, type Icon } from "@phosphor-icons/react";
 import { sair } from "@/lib/acessos";
 import { fecharErro, useLoja } from "@/lib/loja";
 import { Entrada, NovoPin } from "@/components/Entrada";
+import { AlertaPedidos } from "@/components/delivery/AlertaPedidos";
 
 const ITENS: { href: string; nome: string; icone: Icon }[] = [
   { href: "/", nome: "Início", icone: House },
   { href: "/caixa", nome: "Caixa", icone: CashRegister },
+  { href: "/delivery", nome: "Delivery", icone: Moped },
   { href: "/produtos", nome: "Produtos", icone: Package },
   { href: "/relatorios", nome: "Relatórios", icone: ChartBar },
   { href: "/ajustes", nome: "Ajustes", icone: GearSix },
@@ -86,17 +88,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { situacao, pessoa, recuperando } = loja;
 
   const atendente = pessoa?.papel === "atendente";
-  // Atendente só tem o Caixa. O dono vê o menu inteiro.
-  const itens = atendente ? ITENS.filter((i) => i.href === "/caixa") : ITENS;
+  // Atendente só tem o Caixa e o Delivery. O dono vê o menu inteiro.
+  const itens = atendente ? ITENS.filter((i) => i.href === "/caixa" || i.href === "/delivery") : ITENS;
   const indice = Math.max(0, itens.findIndex((i) => ativo(pathname, i.href)));
   const abertas = loja.comandas.length;
+  const novos = loja.pedidos.filter((p) => p.situacao === "novo").length;
+  // Contador em cima do item do menu: comandas abertas no Caixa, pedidos novos no Delivery.
+  const contador = (href: string) => (href === "/caixa" ? abertas : href === "/delivery" ? novos : 0);
+  // A página do cliente do delivery é pública: não pede PIN nem mostra o menu.
+  const publica = pathname.startsWith("/pedir");
 
   const logado = situacao === "dentro" && !recuperando;
-  const redirecionando = logado && atendente && !pathname.startsWith("/caixa");
+  const redirecionando = logado && atendente && !publica && !pathname.startsWith("/caixa") && !pathname.startsWith("/delivery");
 
   useEffect(() => {
     if (redirecionando) router.replace("/caixa");
   }, [redirecionando, router]);
+
+  if (publica) return <>{children}</>;
 
   if (situacao === "carregando") {
     return (
@@ -143,6 +152,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <Avisos />
+      <AlertaPedidos />
 
       {/* Computador: painel de vidro fixo na lateral */}
       <aside className="vidro fixed inset-y-3 left-3 z-30 hidden w-60 flex-col rounded-[28px] p-3 md:flex">
@@ -170,9 +180,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
               >
                 <Icone size={20} weight={marcado ? "fill" : "regular"} className={marcado ? "text-accent" : ""} />
                 {nome}
-                {href === "/caixa" && abertas > 0 && (
+                {contador(href) > 0 && (
                   <span className="num estala ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-yellow-ink">
-                    {abertas}
+                    {contador(href)}
                   </span>
                 )}
               </Link>
@@ -216,7 +226,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* Celular (PWA): cápsula de vidro flutuando acima da barra de gestos */}
       <nav
         aria-label="Navegação"
-        className={`fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden ${atendente ? "hidden" : ""}`}
+        className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden"
       >
         <div className="vidro vidro-flutua relative mx-auto flex h-16 max-w-md rounded-full p-1">
           <span
@@ -237,9 +247,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
               >
                 <span className="relative">
                   <Icone size={24} weight={marcado ? "fill" : "regular"} />
-                  {href === "/caixa" && abertas > 0 && (
+                  {contador(href) > 0 && (
                     <span className="num estala absolute -top-1 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-ink">
-                      {abertas}
+                      {contador(href)}
                     </span>
                   )}
                 </span>

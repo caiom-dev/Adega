@@ -6,6 +6,7 @@ import { definirQuantidade, exportarDados, removerCategoria, salvarCategoria, sa
 import { sair } from "@/lib/acessos";
 import { Aviso, Botao, Cabecalho, Cartao } from "@/components/ui";
 import { JanelaPessoa, Pessoas } from "@/components/Pessoas";
+import { AjustesDelivery } from "@/components/delivery/AjustesDelivery";
 
 function Secao({ titulo, descricao, children, i }: { titulo: string; descricao: string; children: React.ReactNode; i: number }) {
   return (
@@ -108,6 +109,8 @@ export default function AjustesPage() {
           </ul>
         </Cartao>
       </Secao>
+
+      <AjustesDelivery i={2} />
 
       <Secao i={2} titulo="Taxas da maquininha" descricao="Quanto a maquininha desconta em cada forma de pagamento. Entra na conta do lucro">
         <Cartao>

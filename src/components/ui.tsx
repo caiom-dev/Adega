@@ -411,3 +411,43 @@ export function Aviso({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+/** Interruptor liga/desliga, com o texto ao lado. */
+export function Chave({
+  ligada,
+  aoMudar,
+  rotulo,
+  dica,
+  disabled,
+}: {
+  ligada: boolean;
+  aoMudar: (v: boolean) => void;
+  rotulo: React.ReactNode;
+  dica?: React.ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={ligada}
+      disabled={disabled}
+      onClick={() => aoMudar(!ligada)}
+      className="flex w-full items-center justify-between gap-4 text-left disabled:opacity-40"
+    >
+      <span className="min-w-0">
+        <span className="block text-[15px] text-ink">{rotulo}</span>
+        {dica && <span className="mt-0.5 block text-[13px] text-muted">{dica}</span>}
+      </span>
+      <span
+        aria-hidden
+        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ${ligada ? "bg-accent" : "bg-white/15"}`}
+      >
+        <span
+          className="desliza absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow"
+          style={{ transform: ligada ? "translateX(20px)" : "translateX(0)" }}
+        />
+      </span>
+    </button>
+  );
+}

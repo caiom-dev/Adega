@@ -18,6 +18,8 @@ export interface Produto {
   estoque: number | null;
   /** Abaixo ou igual a isso, o produto aparece como "estoque baixo". */
   estoqueMinimo: number | null;
+  /** Aparece no cardápio do delivery. */
+  delivery: boolean;
 }
 
 export interface FormaPagamento {
@@ -137,6 +139,67 @@ export interface MovimentoEstoque {
   custo: number | null;
 }
 
+/* Delivery */
+
+/** Um dia do horário do delivery. null = fechado no dia. "fecha" menor que "abre" passa da meia-noite. */
+export type DiaHorario = { abre: string; fecha: string } | null;
+
+export interface ConfigDelivery {
+  /** Chave geral: desligada, a loja não aceita pedido nenhum. */
+  aberto: boolean;
+  pedidoMinimo: Centavos;
+  /** Aceita "retirar na loja". */
+  retirada: boolean;
+  /** 7 dias, de domingo a sábado. Lista vazia = sem horário (vale só a chave). */
+  horario: DiaHorario[];
+  /** Endereço de onde sai a entrega e o raio atendido, em linha reta. */
+  lojaEndereco: string;
+  lojaLat: number | null;
+  lojaLng: number | null;
+  raioKm: number;
+  /** Taxa única de entrega. */
+  taxaEntrega: Centavos;
+}
+
+export type SituacaoPedido = "novo" | "aceito" | "saiu" | "entregue" | "recusado";
+export type PagamentoPedido = "dinheiro" | "cartao" | "pix";
+
+export interface ItemDelivery {
+  produtoId: string;
+  nome: string;
+  preco: Centavos;
+  qtd: number;
+}
+
+export interface Pedido {
+  id: string;
+  numero: number;
+  criadoEm: string;
+  atualizadoEm: string;
+  cliente: string;
+  /** Só números, com DDD. */
+  telefone: string;
+  retirada: boolean;
+  endereco: string;
+  complemento: string;
+  bairro: string;
+  cep: string;
+  lat: number | null;
+  lng: number | null;
+  /** Distância da adega em metros. null = não conferida (CEP sem localização). */
+  distanciaM: number | null;
+  itens: ItemDelivery[];
+  subtotal: Centavos;
+  taxa: Centavos;
+  total: Centavos;
+  pagamento: PagamentoPedido;
+  trocoPara: Centavos | null;
+  observacao: string;
+  situacao: SituacaoPedido;
+  motivo: string;
+  pessoaId: string | null;
+}
+
 export type Papel = "dono" | "atendente";
 
 export interface Pessoa {
@@ -176,4 +239,7 @@ export interface Estado {
   caixa: Caixa | null;
   /** Nomes de quem usa o app, para mostrar quem fez o quê. */
   equipe: Membro[];
+  delivery: ConfigDelivery;
+  /** Pedidos em andamento e os concluídos nas últimas 24 horas. */
+  pedidos: Pedido[];
 }
