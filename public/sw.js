@@ -3,8 +3,8 @@
 // - Páginas: tenta a rede primeiro; sem rede, usa a última versão guardada.
 // - Arquivos do build (/_next/static): nunca mudam de conteúdo, então vêm do cache.
 
-const VERSAO = "pezao-v4";
-const PAGINAS = ["/", "/caixa", "/delivery", "/produtos", "/relatorios", "/ajustes"];
+const VERSAO = "pezao-v5";
+const PAGINAS = ["/", "/caixa", "/delivery", "/produtos", "/contas", "/relatorios", "/ajustes"];
 
 self.addEventListener("install", (evento) => {
   evento.waitUntil(
@@ -65,7 +65,26 @@ self.addEventListener("fetch", (evento) => {
   }
 });
 
-// Tocar na notificação de pedido novo abre (ou traz para frente) a tela de delivery.
+// Aviso que chega com o app fechado (lembrete das contas). O conteúdo vem da função "lembretes".
+self.addEventListener("push", (evento) => {
+  let aviso = {};
+  try {
+    aviso = evento.data ? evento.data.json() : {};
+  } catch {
+    aviso = { title: "Adega do Pezão", body: evento.data ? evento.data.text() : "" };
+  }
+  evento.waitUntil(
+    self.registration.showNotification(aviso.title || "Adega do Pezão", {
+      body: aviso.body || "",
+      tag: aviso.tag || "aviso",
+      icon: "/icone-192.png",
+      badge: "/icone-192.png",
+      data: { url: aviso.url || "/" },
+    }),
+  );
+});
+
+// Tocar na notificação abre (ou traz para frente) a tela de delivery.
 self.addEventListener("notificationclick", (evento) => {
   evento.notification.close();
   const destino = (evento.notification.data && evento.notification.data.url) || "/delivery";

@@ -242,4 +242,22 @@ export interface Estado {
   delivery: ConfigDelivery;
   /** Pedidos em andamento e os concluídos nas últimas 24 horas. */
   pedidos: Pedido[];
+  /** Contas a pagar (boletos). Só o dono recebe. */
+  contas: Conta[];
+}
+
+/** Conta a pagar. Datas em "AAAA-MM-DD". */
+export interface Conta {
+  id: string;
+  descricao: string;
+  /** Centavos. */
+  valor: number;
+  vencimento: string;
+  /** Linha digitável só com os dígitos, ou "". */
+  linha: string;
+  /** Caminho do anexo na área privada, ou null. */
+  anexo: string | null;
+  pagoEm: string | null;
+  pagoPor: string | null;
+  criadoEm: string;
 }

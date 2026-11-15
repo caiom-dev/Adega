@@ -7,6 +7,7 @@ import { sair } from "@/lib/acessos";
 import { Aviso, Botao, Cabecalho, Cartao } from "@/components/ui";
 import { JanelaPessoa, Pessoas } from "@/components/Pessoas";
 import { AjustesDelivery } from "@/components/delivery/AjustesDelivery";
+import { AjustesLembretes } from "@/components/contas/AjustesLembretes";
 
 function Secao({ titulo, descricao, children, i }: { titulo: string; descricao: string; children: React.ReactNode; i: number }) {
   return (
@@ -183,6 +184,10 @@ export default function AjustesPage() {
           </Botao>
         </form>
         {nomeNovo && categoriaRepetida && <p className="aparece mt-2 text-[13px] text-red-ink">Já existe uma categoria com esse nome</p>}
+      </Secao>
+
+      <Secao i={4} titulo="Lembretes das contas" descricao="Aviso no celular e no e-mail para não esquecer boleto">
+        <AjustesLembretes avisar={avisar} />
       </Secao>
 
       <Secao

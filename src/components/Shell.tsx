@@ -4,17 +4,20 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
-import { CashRegister, ChartBar, GearSix, House, Moped, Package, type Icon } from "@phosphor-icons/react";
+import { CashRegister, ChartBar, GearSix, House, Moped, Package, Receipt, type Icon } from "@phosphor-icons/react";
+import { hojeISO, resumirContas } from "@/lib/contas";
 import { sair } from "@/lib/acessos";
 import { fecharErro, useLoja } from "@/lib/loja";
 import { Entrada, NovoPin } from "@/components/Entrada";
 import { AlertaPedidos } from "@/components/delivery/AlertaPedidos";
+import { useAgora } from "@/components/ui";
 
 const ITENS: { href: string; nome: string; icone: Icon }[] = [
   { href: "/", nome: "Início", icone: House },
   { href: "/caixa", nome: "Caixa", icone: CashRegister },
   { href: "/delivery", nome: "Delivery", icone: Moped },
   { href: "/produtos", nome: "Produtos", icone: Package },
+  { href: "/contas", nome: "Contas", icone: Receipt },
   { href: "/relatorios", nome: "Relatórios", icone: ChartBar },
   { href: "/ajustes", nome: "Ajustes", icone: GearSix },
 ];
@@ -93,8 +96,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const indice = Math.max(0, itens.findIndex((i) => ativo(pathname, i.href)));
   const abertas = loja.comandas.length;
   const novos = loja.pedidos.filter((p) => p.situacao === "novo").length;
-  // Contador em cima do item do menu: comandas abertas no Caixa, pedidos novos no Delivery.
-  const contador = (href: string) => (href === "/caixa" ? abertas : href === "/delivery" ? novos : 0);
+  // Contas vencidas ou vencendo hoje. A data só existe no navegador (o servidor não sabe o fuso).
+  const agora = useAgora();
+  const urgentes = atendente || !agora ? 0 : resumirContas(loja.contas, hojeISO(agora)).urgentes;
+  // Contador em cima do item do menu: comandas abertas no Caixa, pedidos novos no Delivery, contas para hoje.
+  const contador = (href: string) => (href === "/caixa" ? abertas : href === "/delivery" ? novos : href === "/contas" ? urgentes : 0);
   // A página do cliente do delivery é pública: não pede PIN nem mostra o menu.
   const publica = pathname.startsWith("/pedir");
 

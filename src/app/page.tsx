@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowRight, CaretRight, Warning } from "@phosphor-icons/react";
+import { ArrowRight, CaretRight, Receipt, Warning } from "@phosphor-icons/react";
 import { pct, reais } from "@/lib/dinheiro";
 import { estoqueBaixo, intervalo, situacaoEstoque, porDia, resumir, totalComanda, vendasNoIntervalo, type Resumo } from "@/lib/calculos";
 import { nomeComanda, tempoDesde } from "@/lib/lugares";
 import { useLoja } from "@/lib/loja";
+import { dataCurta, diasAte, hojeISO, textoVencimento } from "@/lib/contas";
 import type { Venda } from "@/lib/tipos";
 import { Cartao, NumeroAnimado, useAgora } from "@/components/ui";
 import { Barras } from "@/components/Graficos";
@@ -89,6 +90,14 @@ export default function InicioPage() {
   const semCusto = loja.produtos.filter((p) => p.ativo && p.custo === null).length;
   // Acabando: zerados primeiro, depois os de menor saldo.
   const acabando = loja.produtos.filter(estoqueBaixo).sort((a, b) => (a.estoque ?? 0) - (b.estoque ?? 0));
+  // Contas na janela do lembrete: vencidas e as que vencem nos próximos 3 dias.
+  const hoje = agora ? hojeISO(agora) : null;
+  const contasPerto = hoje
+    ? loja.contas
+        .filter((c) => !c.pagoEm && diasAte(c.vencimento, hoje) <= 3)
+        .sort((a, b) => a.vencimento.localeCompare(b.vencimento))
+    : [];
+  const temVencida = !!hoje && contasPerto.some((c) => diasAte(c.vencimento, hoje) < 0);
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 md:px-8">
@@ -137,6 +146,34 @@ export default function InicioPage() {
             />
             <Bloco i={3} rotulo="Ticket médio" valor={pronto ? dados.hoje.ticketMedio : null} formato={reais} />
           </div>
+
+          {hoje && contasPerto.length > 0 && (
+            <Link
+              href="/contas"
+              className={`aperta entra mt-3 flex items-start gap-3 rounded-[16px] px-4 py-3 text-[15px] ${
+                temVencida ? "bg-red-soft text-red-ink" : "bg-yellow-soft text-yellow-ink"
+              }`}
+              style={{ "--i": 4 } as React.CSSProperties}
+            >
+              <Receipt size={20} weight="fill" className="mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">
+                  {contasPerto.length === 1
+                    ? `${contasPerto[0].descricao} ${textoVencimento(contasPerto[0].vencimento, hoje)}`
+                    : `${contasPerto.length} contas para pagar · ${reais(contasPerto.reduce((s, c) => s + c.valor, 0))}`}
+                </span>
+                <span className="num mt-0.5 block text-[13px] opacity-90">
+                  {contasPerto.length === 1
+                    ? `${reais(contasPerto[0].valor)} · ${dataCurta(contasPerto[0].vencimento, hoje)}`
+                    : contasPerto
+                        .slice(0, 3)
+                        .map((c) => `${c.descricao} ${textoVencimento(c.vencimento, hoje)}`)
+                        .join(" · ") + (contasPerto.length > 3 ? " · …" : "")}
+                </span>
+              </span>
+              <CaretRight size={14} weight="bold" className="mt-1.5" />
+            </Link>
+          )}
 
           {semCusto > 0 && (
             <Link

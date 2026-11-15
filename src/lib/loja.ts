@@ -9,6 +9,7 @@ import type {
   ConfigDelivery,
   Categoria,
   Comanda,
+  Conta,
   Estado,
   FormaPagamento,
   ItemPedido,
@@ -52,6 +53,7 @@ const vazio: Estado = {
   equipe: [],
   delivery: { aberto: false, pedidoMinimo: 0, retirada: true, horario: [], lojaEndereco: "", lojaLat: null, lojaLng: null, raioKm: 5, taxaEntrega: 0 },
   pedidos: [],
+  contas: [],
 };
 
 const ouvintes = new Set<() => void>();
@@ -167,6 +169,18 @@ async function buscarPedidos(): Promise<Pedido[]> {
   if (error) throw error;
   return (data as Linha[]).map(paraPedido);
 }
+
+const paraConta = (l: Linha): Conta => ({
+  id: l.id as string,
+  descricao: l.descricao as string,
+  valor: l.valor as number,
+  vencimento: l.vencimento as string,
+  linha: (l.linha as string) ?? "",
+  anexo: (l.anexo as string | null) ?? null,
+  pagoEm: (l.pago_em as string | null) ?? null,
+  pagoPor: (l.pago_por as string | null) ?? null,
+  criadoEm: l.criado_em as string,
+});
 
 const paraForma = (l: Linha): FormaPagamento => ({ id: l.id as string, nome: l.nome as string, taxa: Number(l.taxa) });
 
@@ -316,6 +330,7 @@ async function carregar(usuario: string) {
       buscarEquipe(papel),
       buscarPedidos(),
     ]);
+    const contas = papel === "dono" ? await tudo("contas", undefined, "vencimento") : [];
     if (config.error) throw config.error;
     if (caixa.error) throw caixa.error;
     if (usuarioCarregado !== usuario) return;
@@ -334,6 +349,7 @@ async function carregar(usuario: string) {
       equipe,
       delivery: paraConfigDelivery(config.data),
       pedidos,
+      contas: contas.map(paraConta),
     });
     void escutar();
     if (papel === "dono") void carregarVendas(usuario);
@@ -411,7 +427,7 @@ const recarregando = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** Junta várias mudanças seguidas da mesma tabela numa busca só. */
 function recarregar(
-  tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe" | "pedidos",
+  tabela: "categorias" | "produtos" | "formas" | "configuracao" | "custos" | "comandas" | "caixa" | "equipe" | "pedidos" | "contas",
 ) {
   clearTimeout(recarregando.get(tabela));
   recarregando.set(
@@ -420,6 +436,7 @@ function recarregar(
       try {
         if (tabela === "categorias") por({ categorias: ordenarCategorias(await tudo("categorias")) });
         if (tabela === "pedidos") por({ pedidos: await buscarPedidos() });
+        if (tabela === "contas" && atual.pessoa?.papel === "dono") por({ contas: (await tudo("contas", undefined, "vencimento")).map(paraConta) });
         if (tabela === "caixa") {
           const { data, error } = await banco.rpc("caixa_atual");
           if (!error) por({ caixa: paraCaixa(data as Linha | null) });
@@ -503,6 +520,9 @@ async function escutar() {
           if (m.eventType === "INSERT") ouvintesPedido.forEach((avisar) => avisar(pedido));
           return;
         }
+        case "contas":
+          recarregar("contas");
+          return;
         case "caixas":
         case "movimentos_caixa":
           recarregar("caixa");
@@ -528,7 +548,7 @@ async function escutar() {
     })
     .subscribe((estado) => {
       // Voltou a conexão depois de uma queda: busca o que mudou enquanto estava fora.
-      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe", "pedidos"] as const).forEach(recarregar);
+      if (estado === "SUBSCRIBED" && escutouAntes) (["comandas", "produtos", "categorias", "formas", "configuracao", "caixa", "equipe", "pedidos", "contas"] as const).forEach(recarregar);
       if (estado === "SUBSCRIBED") escutouAntes = true;
     });
 }
@@ -1094,4 +1114,50 @@ export function marcarDelivery(ids: string[], valor: boolean) {
   const alvo = new Set(ids);
   mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (alvo.has(p.id) ? { ...p, delivery: valor } : p)) }));
   return gravar(banco.from("produtos").update({ delivery: valor }).in("id", ids), "produtos");
+}
+
+/* Contas a pagar (só o dono) */
+
+export interface DadosConta {
+  /** Conta existente que está sendo mudada. */
+  id?: string;
+  /** Id já escolhido para uma conta nova (o anexo sobe antes, numa pasta com esse id). */
+  novoId?: string;
+  descricao: string;
+  valor: number;
+  vencimento: string;
+  linha: string;
+  anexo: string | null;
+}
+
+/** Grava a conta. Devolve o id quando o banco confirmou, ou null se falhou. */
+export async function salvarConta(dados: DadosConta): Promise<string | null> {
+  const id = dados.id ?? dados.novoId ?? novoId();
+  const linha = { descricao: dados.descricao.trim(), valor: dados.valor, vencimento: dados.vencimento, linha: dados.linha, anexo: dados.anexo };
+  mudar((e) => {
+    const antiga = e.contas.find((c) => c.id === id);
+    const conta: Conta = {
+      id, ...linha, pagoEm: antiga?.pagoEm ?? null, pagoPor: antiga?.pagoPor ?? null, criadoEm: antiga?.criadoEm ?? new Date().toISOString(),
+    };
+    return { ...e, contas: antiga ? e.contas.map((c) => (c.id === id ? conta : c)) : [...e.contas, conta] };
+  });
+  const ok = await gravar(
+    dados.id ? banco.from("contas").update(linha).eq("id", id) : banco.from("contas").insert({ id, ...linha }),
+    "contas",
+  );
+  return ok ? id : null;
+}
+
+/** Marca como paga (com a data) ou desfaz. */
+export function marcarPaga(id: string, pagoEm: string | null) {
+  mudar((e) => ({ ...e, contas: e.contas.map((c) => (c.id === id ? { ...c, pagoEm } : c)) }));
+  return gravar(banco.from("contas").update({ pago_em: pagoEm }).eq("id", id), "contas");
+}
+
+export async function apagarConta(id: string) {
+  const conta = atual.contas.find((c) => c.id === id);
+  mudar((e) => ({ ...e, contas: e.contas.filter((c) => c.id !== id) }));
+  const ok = await gravar(banco.from("contas").delete().eq("id", id), "contas");
+  if (ok && conta?.anexo) await banco.storage.from("boletos").remove([conta.anexo]);
+  return ok;
 }

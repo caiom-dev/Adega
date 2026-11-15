@@ -17,6 +17,11 @@ que também funciona no computador.
   (o cliente digita o CEP e o app confere a distância) com taxa única ou retirada, pagamento na entrega com troco e página para o cliente acompanhar o pedido. Na adega, a tela Delivery
   recebe os pedidos ao vivo com som e notificação, e cada um passa por aceito, saiu e entregue (vira venda e baixa o
   estoque) ou recusado com motivo. Em Ajustes: chave de aceitar pedidos, horário, pedido mínimo, área de entrega (endereço, raio e taxa) e produtos do cardápio.
+- **Contas**: só o dono. Lança o boleto anexando o PDF (o app lê a linha digitável e preenche valor e vencimento)
+  ou a foto (lê o código de barras no Chrome do Android); conta de consumo pede a data. Lista por vencimento com o
+  total vencido, dos próximos 7 dias e do mês, copia a linha para pagar no banco e marca como paga com a data.
+  Lembrete às 8h: 3 dias antes, 1 dia antes, no dia e todo dia enquanto vencida, por notificação no celular, aviso
+  no Início e e-mail. A notificação liga em Ajustes, em cada aparelho.
 - **Relatórios**: lucro, vendas por dia, horário e dia da semana, formas de pagamento, equipe (quem vendeu e quem cancelou) e histórico com cancelamento.
 - **Ajustes**: pessoas e PINs, mesas e balcões, taxas da maquininha, categorias e cópia de segurança.
 - **Acesso**: entrada por PIN de 4 números. O **dono** vê tudo; o **atendente** só vê o Caixa e nunca recebe o custo dos produtos.

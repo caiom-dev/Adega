@@ -28,4 +28,22 @@ histórico completo fica lá (Database > Migrations).
   coordenadas, `raio_km` e `taxa_entrega` em `configuracao`). O pedido guarda CEP, coordenadas e distância;
   `fazer_pedido` recusa com `fora_da_area` o que passa do raio. A tabela `bairros` ficou sem uso. Aplicada em 13/11/2026.
 
-`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 008.
+- `migrations/009_contas.sql`: contas a pagar (`contas`, só o dono lê e grava) e a área privada `boletos`
+  para os anexos (PDF e foto, até 10 MB). Aplicada em 15/11/2026.
+
+- `migrations/010_inscricoes_push.sql`: aparelhos do dono inscritos para notificação com o app fechado
+  (`inscrever_push`, `desinscrever_push`). Aplicada em 15/11/2026.
+
+- `migrations/011_agenda_lembretes.sql`: agendamento diário às 8h de Brasília (pg_cron + pg_net) que chama a
+  função `lembretes`. A chave da chamada é sorteada no próprio banco e fica no cofre (vault). Aplicada em 15/11/2026.
+
+- `migrations/012_contas_criado_por.sql`: quem lançou e quem pagou a conta passam a ser gravados pelo gatilho.
+  Aplicada em 15/11/2026.
+
+- `functions/lembretes/index.ts`: função (Deno) que avisa o dono das contas 3 dias antes, 1 dia antes, no dia e
+  todo dia enquanto vencida, por notificação no celular e por e-mail (Resend). Cria as chaves de notificação no
+  cofre na primeira chamada. O e-mail só sai depois de cadastrar o segredo `RESEND_API_KEY` na função
+  (e, com domínio próprio verificado no Resend, `LEMBRETES_REMETENTE`, por exemplo `Adega do Pezão <contas@seudominio>`).
+  Publicar: `supabase functions deploy lembretes --no-verify-jwt` (ela confere o acesso sozinha).
+
+`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 012.
