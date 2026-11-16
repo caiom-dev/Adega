@@ -3,9 +3,11 @@
 import { Minus, Plus, Trash } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
 import { subtotal, totalComanda } from "@/lib/calculos";
-import { mudarQtd } from "@/lib/loja";
+import { useMemo } from "react";
+import { mudarQtd, useLoja } from "@/lib/loja";
 import type { Comanda } from "@/lib/tipos";
 import { Botao, NumeroAnimado } from "@/components/ui";
+import { MiniFoto } from "@/components/FotoProduto";
 
 export function PainelComanda({
   comanda,
@@ -20,6 +22,10 @@ export function PainelComanda({
   aoEsvaziar: () => void;
   aoCobrar: () => void;
 }) {
+  const { produtos } = useLoja();
+  // O item da comanda guarda só nome e preço; a foto vem do cadastro do produto.
+  const fotos = useMemo(() => new Map(produtos.filter((p) => p.foto).map((p) => [p.id, p.foto as string])), [produtos]);
+  const temFotos = comanda.itens.some((i) => fotos.has(i.produtoId));
   const vazio = comanda.itens.length === 0;
   const total = totalComanda(comanda);
 
@@ -32,8 +38,9 @@ export function PainelComanda({
           <ul className="divide-y divide-line">
             {comanda.itens.map((i) => (
               <li key={i.produtoId} className="aparece flex items-center gap-3 py-3">
+                {temFotos && <MiniFoto caminho={fotos.get(i.produtoId) ?? null} />}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-medium text-ink">{i.nome}</p>
+                  <p className="line-clamp-2 text-[15px] leading-snug font-medium text-ink">{i.nome}</p>
                   <p className="num text-[13px] text-muted">{reais(i.preco)} cada</p>
                 </div>
                 <div className="vidro-leve flex items-center rounded-full">
