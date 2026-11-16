@@ -25,7 +25,9 @@ export interface LeituraBoleto {
   sugestao: string;
 }
 
-export type ResultadoBoleto = { ok: true; leitura: LeituraBoleto } | { ok: false; erro: "tamanho" | "digito" };
+export type ResultadoBoleto =
+  | { ok: true; leitura: LeituraBoleto }
+  | { ok: false; erro: "tamanho" | "digito" };
 
 const so = (t: string) => t.replace(/\D/g, "");
 
@@ -121,9 +123,14 @@ const SEGMENTOS: Record<string, string> = {
 
 /* ───────── Leitura ───────── */
 
-function lerBarrasBancario(barras: string, linha: string, hoje: Date): ResultadoBoleto {
+function lerBarrasBancario(
+  barras: string,
+  linha: string,
+  hoje: Date,
+): ResultadoBoleto {
   const dv = Number(barras[4]);
-  if (modulo11Bancario(barras.slice(0, 4) + barras.slice(5)) !== dv) return { ok: false, erro: "digito" };
+  if (modulo11Bancario(barras.slice(0, 4) + barras.slice(5)) !== dv)
+    return { ok: false, erro: "digito" };
   const fator = Number(barras.slice(5, 9));
   const valor = Number(barras.slice(9, 19));
   const banco = BANCOS[barras.slice(0, 3)];
@@ -143,9 +150,15 @@ function lerBarrasBancario(barras: string, linha: string, hoje: Date): Resultado
 function lerBarrasConsumo(barras: string, linha: string): ResultadoBoleto {
   const id = barras[2];
   // 6 e 8: valor em reais. 7 e 9: valor de referência (índice), que não serve como valor a pagar.
-  const calcular = id === "6" || id === "7" ? modulo10 : id === "8" || id === "9" ? modulo11Consumo : null;
+  const calcular =
+    id === "6" || id === "7"
+      ? modulo10
+      : id === "8" || id === "9"
+        ? modulo11Consumo
+        : null;
   if (!calcular) return { ok: false, erro: "digito" };
-  if (calcular(barras.slice(0, 3) + barras.slice(4)) !== Number(barras[3])) return { ok: false, erro: "digito" };
+  if (calcular(barras.slice(0, 3) + barras.slice(4)) !== Number(barras[3]))
+    return { ok: false, erro: "digito" };
   const valor = id === "6" || id === "8" ? Number(barras.slice(4, 15)) : 0;
   return {
     ok: true,
@@ -163,8 +176,16 @@ function lerBarrasConsumo(barras: string, linha: string): ResultadoBoleto {
 /** Linha de boleto bancário (47) para código de barras (44), conferindo o dígito de cada campo. */
 function barrasDaLinhaBancaria(l: string): string | null {
   const campos = [l.slice(0, 10), l.slice(10, 21), l.slice(21, 32)];
-  for (const c of campos) if (modulo10(c.slice(0, -1)) !== Number(c.at(-1))) return null;
-  return l.slice(0, 4) + l[32] + l.slice(33, 47) + l.slice(4, 9) + l.slice(10, 20) + l.slice(21, 31);
+  for (const c of campos)
+    if (modulo10(c.slice(0, -1)) !== Number(c.at(-1))) return null;
+  return (
+    l.slice(0, 4) +
+    l[32] +
+    l.slice(33, 47) +
+    l.slice(4, 9) +
+    l.slice(10, 20) +
+    l.slice(21, 31)
+  );
 }
 
 /** Linha de conta de consumo (48) para código de barras (44): quatro blocos de 11 dígitos mais o dígito. */
@@ -184,7 +205,16 @@ function linhaDasBarrasBancario(b: string): string {
   const c1 = b.slice(0, 4) + b.slice(19, 24);
   const c2 = b.slice(24, 34);
   const c3 = b.slice(34, 44);
-  return c1 + modulo10(c1) + c2 + modulo10(c2) + c3 + modulo10(c3) + b[4] + b.slice(5, 19);
+  return (
+    c1 +
+    modulo10(c1) +
+    c2 +
+    modulo10(c2) +
+    c3 +
+    modulo10(c3) +
+    b[4] +
+    b.slice(5, 19)
+  );
 }
 
 /** Código de barras de consumo (44) para a linha digitável (48). */
@@ -208,7 +238,9 @@ export function lerBoleto(texto: string, hoje = new Date()): ResultadoBoleto {
   }
   if (d.length === 47) {
     const barras = barrasDaLinhaBancaria(d);
-    return barras ? lerBarrasBancario(barras, d, hoje) : { ok: false, erro: "digito" };
+    return barras
+      ? lerBarrasBancario(barras, d, hoje)
+      : { ok: false, erro: "digito" };
   }
   if (d.length === 48 && d[0] === "8") {
     const barras = barrasDaLinhaConsumo(d);
@@ -222,18 +254,34 @@ export function lerBoleto(texto: string, hoje = new Date()): ResultadoBoleto {
  * Junta trechos de números separados por ponto, espaço ou traço e testa cada janela possível;
  * os dígitos verificadores eliminam as sequências que só parecem boleto.
  */
-export function acharBoleto(texto: string, hoje = new Date()): LeituraBoleto | null {
+export function acharBoleto(
+  texto: string,
+  hoje = new Date(),
+): LeituraBoleto | null {
+  return acharBoletos(texto, hoje)[0] ?? null;
+}
+
+/** Todos os boletos do texto, na ordem e sem repetir (um carnê traz vários no mesmo PDF). */
+export function acharBoletos(
+  texto: string,
+  hoje = new Date(),
+): LeituraBoleto[] {
+  const achados: LeituraBoleto[] = [];
   const trechos = texto.match(/\d[\d.\s-]{42,90}\d/g) ?? [];
   for (const t of trechos) {
     const d = so(t);
-    for (const tamanho of [47, 48, 44]) {
+    busca: for (const tamanho of [47, 48, 44]) {
       for (let i = 0; i + tamanho <= d.length; i++) {
         const r = lerBoleto(d.slice(i, i + tamanho), hoje);
-        if (r.ok) return r.leitura;
+        if (r.ok) {
+          if (!achados.some((a) => a.barras === r.leitura.barras))
+            achados.push(r.leitura);
+          break busca;
+        }
       }
     }
   }
-  return null;
+  return achados;
 }
 
 /** Linha digitável com a pontuação do banco, para copiar e colar no app do banco. */
@@ -242,6 +290,9 @@ export function formatarLinha(linha: string): string {
   if (l.length === 47) {
     return `${l.slice(0, 5)}.${l.slice(5, 10)} ${l.slice(10, 15)}.${l.slice(15, 21)} ${l.slice(21, 26)}.${l.slice(26, 32)} ${l[32]} ${l.slice(33)}`;
   }
-  if (l.length === 48) return [0, 12, 24, 36].map((i) => `${l.slice(i, i + 11)}-${l[i + 11]}`).join(" ");
+  if (l.length === 48)
+    return [0, 12, 24, 36]
+      .map((i) => `${l.slice(i, i + 11)}-${l[i + 11]}`)
+      .join(" ");
   return l;
 }
