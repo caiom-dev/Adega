@@ -20,6 +20,8 @@ export interface Produto {
   estoqueMinimo: number | null;
   /** Aparece no cardápio do delivery. */
   delivery: boolean;
+  /** Caminho da foto na área pública "produtos". null = sem foto. */
+  foto: string | null;
 }
 
 export interface FormaPagamento {

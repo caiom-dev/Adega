@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { banco } from "./banco";
+import { apagarFoto, enviarFoto, prepararFoto } from "./fotoProduto";
 import { subtotal } from "./calculos";
 import { lerIdLugar } from "./lugares";
 import type {
@@ -115,6 +116,7 @@ const paraProduto = (l: Linha): Produto => ({
   estoque: (l.estoque as number | null) ?? null,
   estoqueMinimo: (l.estoque_minimo as number | null) ?? null,
   delivery: Boolean(l.delivery),
+  foto: (l.foto as string | null) ?? null,
 });
 
 const paraConfigDelivery = (l: Linha): ConfigDelivery => ({
@@ -575,10 +577,11 @@ async function gravar(pedido: PromiseLike<{ error: unknown }>, tabela: Parameter
  * Grava o produto. A tela já mostra a mudança na hora; a promessa devolve o id quando o banco
  * confirmou, ou null se falhou.
  */
-export function salvarProduto(dados: Omit<Produto, "id" | "ativo" | "estoque"> & { id?: string }): Promise<string | null> {
+export function salvarProduto(dados: Omit<Produto, "id" | "ativo" | "estoque" | "foto"> & { id?: string }): Promise<string | null> {
   const id = dados.id ?? novoId();
-  const estoque = atual.produtos.find((p) => p.id === id)?.estoque ?? null;
-  const produto: Produto = { ...dados, id, ativo: true, estoque };
+  const antes = atual.produtos.find((p) => p.id === id);
+  // Estoque e foto têm caminho próprio (registrarEstoque e trocarFotoProduto): aqui ficam como estão.
+  const produto: Produto = { ...dados, id, ativo: true, estoque: antes?.estoque ?? null, foto: antes?.foto ?? null };
   mudar((e) => ({
     ...e,
     produtos: dados.id ? e.produtos.map((p) => (p.id === id ? { ...p, ...produto } : p)) : [...e.produtos, produto],
@@ -607,6 +610,36 @@ export function salvarProduto(dados: Omit<Produto, "id" | "ativo" | "estoque"> &
     );
     return custoOk ? id : null;
   })();
+}
+
+/**
+ * Põe, troca ou tira (arquivo null) a foto de um produto que já está no banco.
+ * A foto antiga só é apagada depois que a nova ficou gravada. Devolve o erro, ou null.
+ */
+export async function trocarFotoProduto(produtoId: string, arquivo: File | null, avisarNaTela = false): Promise<string | null> {
+  const falha = await trocarFoto(produtoId, arquivo);
+  // Quem chama sem uma janela aberta para mostrar o erro pede o aviso no rodapé do app.
+  if (falha && avisarNaTela) por({ erro: falha });
+  return falha;
+}
+
+async function trocarFoto(produtoId: string, arquivo: File | null): Promise<string | null> {
+  const antiga = atual.produtos.find((p) => p.id === produtoId)?.foto ?? null;
+  let caminho: string | null = null;
+  if (arquivo) {
+    const foto = await prepararFoto(arquivo);
+    if (!foto) return "Não consegui abrir essa imagem. Mande em JPG ou PNG.";
+    caminho = await enviarFoto(produtoId, foto);
+    if (!caminho) return "Não consegui enviar a foto. Confira a internet e tente de novo.";
+  }
+  const ok = await gravar(banco.from("produtos").update({ foto: caminho }).eq("id", produtoId), "produtos");
+  if (!ok) {
+    if (caminho) void apagarFoto(caminho);
+    return "Não consegui guardar a foto no produto. Tente de novo.";
+  }
+  mudar((e) => ({ ...e, produtos: e.produtos.map((p) => (p.id === produtoId ? { ...p, foto: caminho } : p)) }));
+  if (antiga) void apagarFoto(antiga);
+  return null;
 }
 
 /** Não apaga de verdade: vendas antigas continuam apontando para o produto. */

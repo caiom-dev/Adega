@@ -10,10 +10,11 @@ import type { Produto } from "@/lib/tipos";
 import { Botao, Cabecalho, Cartao, Etiqueta, Segmentado } from "@/components/ui";
 import { TelaEstoque, type FiltroEstoque } from "@/components/estoque/TelaEstoque";
 import { JanelaProduto } from "@/components/JanelaProduto";
+import { MiniFoto } from "@/components/FotoProduto";
 
 type Ordem = "nome" | "margem" | "preco";
 
-type Filtro = "todos" | "sem-custo";
+type Filtro = "todos" | "sem-custo" | "sem-foto";
 type Aba = "produtos" | "estoque";
 const FILTROS_ESTOQUE: FiltroEstoque[] = ["controlados", "acabando", "zerados", "sem-controle"];
 
@@ -43,7 +44,7 @@ export default function ProdutosPage() {
 
 function Produtos() {
   const loja = useLoja();
-  // Links do Início: /produtos?filtro=sem-custo e /produtos?aba=estoque&filtro=acabando
+  // Links do Início: /produtos?filtro=sem-custo (ou sem-foto) e /produtos?aba=estoque&filtro=acabando
   const params = useSearchParams();
   const [aba, setAba] = useState<Aba>(() => (params.get("aba") === "estoque" ? "estoque" : "produtos"));
   const filtroEstoque = FILTROS_ESTOQUE.find((f) => f === params.get("filtro")) ?? "controlados";
@@ -51,13 +52,14 @@ function Produtos() {
   const [categoria, setCategoria] = useState("todas");
   const [filtro, setFiltro] = useState<Filtro>(() => {
     const f = params.get("filtro");
-    return f === "sem-custo" ? f : "todos";
+    return f === "sem-custo" || f === "sem-foto" ? f : "todos";
   });
   const [ordem, setOrdem] = useState<Ordem>("nome");
   const [editando, setEditando] = useState<Produto | "novo" | null>(null);
 
   const ativos = useMemo(() => loja.produtos.filter((p) => p.ativo), [loja.produtos]);
   const semCusto = ativos.filter((p) => p.custo === null).length;
+  const semFoto = ativos.filter((p) => !p.foto).length;
   const nomeCategoria = useMemo(() => new Map(loja.categorias.map((c) => [c.id, c.nome])), [loja.categorias]);
 
   const lista = useMemo(() => {
@@ -65,6 +67,7 @@ function Produtos() {
     return ativos
       .filter((p) => categoria === "todas" || p.categoriaId === categoria)
       .filter((p) => filtro !== "sem-custo" || p.custo === null)
+      .filter((p) => filtro !== "sem-foto" || !p.foto)
       .filter((p) => !termo || p.nome.toLowerCase().includes(termo))
       .sort((a, b) => {
         if (ordem === "preco") return b.preco - a.preco;
@@ -130,7 +133,7 @@ function Produtos() {
           </div>
         </div>
 
-        {(semCusto > 0 || filtro !== "todos") && (
+        {(semCusto > 0 || semFoto > 0 || filtro !== "todos") && (
           <div className="mt-3 flex flex-wrap gap-2">
             {(semCusto > 0 || filtro === "sem-custo") && (
               <button
@@ -141,6 +144,17 @@ function Produtos() {
                 className={`aperta h-9 rounded-full px-4 text-sm font-medium ${filtro === "sem-custo" ? "vidro-ambar" : "vidro-leve text-yellow-ink"}`}
               >
                 {filtro === "sem-custo" ? "Mostrando só os sem custo" : `Ver os ${semCusto} sem custo`}
+              </button>
+            )}
+            {(semFoto > 0 || filtro === "sem-foto") && (
+              <button
+                type="button"
+                data-luz=""
+                aria-pressed={filtro === "sem-foto"}
+                onClick={() => setFiltro((f) => (f === "sem-foto" ? "todos" : "sem-foto"))}
+                className={`aperta h-9 rounded-full px-4 text-sm font-medium ${filtro === "sem-foto" ? "vidro-ambar" : "vidro-leve text-body"}`}
+              >
+                {filtro === "sem-foto" ? "Mostrando só os sem foto" : `${semFoto} sem foto`}
               </button>
             )}
           </div>
@@ -175,7 +189,12 @@ function Produtos() {
                       onKeyDown={(e) => e.key === "Enter" && setEditando(p)}
                       className="cursor-pointer transition-colors duration-150 hover:bg-sunk"
                     >
-                      <td className="px-5 py-3 font-medium text-ink">{p.nome}</td>
+                      <td className="px-5 py-2.5 font-medium text-ink">
+                        <span className="flex items-center gap-3">
+                          <MiniFoto caminho={p.foto} className="h-9 w-9 rounded-[10px]" />
+                          {p.nome}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-body">{nomeCategoria.get(p.categoriaId) ?? "Sem categoria"}</td>
                       <td className="num px-4 py-3 text-right text-body">{p.custo === null ? "–" : reais(p.custo)}</td>
                       <td className="num px-4 py-3 text-right text-ink">{reais(p.preco)}</td>
@@ -202,6 +221,7 @@ function Produtos() {
                       onClick={() => setEditando(p)}
                       className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 active:bg-sunk"
                     >
+                      <MiniFoto caminho={p.foto} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[15px] font-medium text-ink">{p.nome}</p>
                         <p className="num text-[13px] text-body">

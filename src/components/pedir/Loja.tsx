@@ -20,6 +20,7 @@ import {
 import { buscarCep, minhaLocalizacao, type EnderecoCep } from "@/lib/endereco";
 import type { PagamentoPedido } from "@/lib/tipos";
 import { Botao, CampoDinheiro, CampoTexto, Cartao, NumeroAnimado, Segmentado } from "@/components/ui";
+import { MiniFoto } from "@/components/FotoProduto";
 
 /* Tudo que fica no aparelho do cliente: só conveniência, nada depende disso. */
 const CHAVE = {
@@ -329,6 +330,8 @@ function ListaProdutos({
   }, [cardapio.produtos, categoria, busca]);
 
   const preco = useMemo(() => new Map(cardapio.produtos.map((p) => [p.id, p.preco])), [cardapio.produtos]);
+  // Enquanto nenhum produto tem foto, o cardápio fica só com nome e preço, sem quadrados vazios.
+  const temFotos = useMemo(() => cardapio.produtos.some((p) => p.foto), [cardapio.produtos]);
   const itens = Object.values(carrinho).reduce((s, q) => s + q, 0);
   const subtotal = Object.entries(carrinho).reduce((s, [id, q]) => s + (preco.get(id) ?? 0) * q, 0);
 
@@ -382,6 +385,7 @@ function ListaProdutos({
           <ul className="divide-y divide-line">
             {lista.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-4 py-3">
+                {temFotos && <MiniFoto caminho={p.foto ?? null} className="h-16 w-16 rounded-[14px]" />}
                 <span className="min-w-0 flex-1">
                   <span className="block text-[15px] leading-snug font-medium text-ink">{p.nome}</span>
                   <span className="num block text-[15px] text-body">{reais(p.preco)}</span>

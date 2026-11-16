@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { margem, nivelMargem, pct, reais } from "@/lib/dinheiro";
 import {
   arquivarProduto,
@@ -10,8 +10,11 @@ import {
   pararEstoque,
   registrarEstoque,
   salvarProduto,
+  trocarFotoProduto,
   useLoja,
 } from "@/lib/loja";
+import { urlFoto } from "@/lib/fotoProduto";
+import { conferirArquivo, SlotFoto } from "@/components/FotoProduto";
 import type { Categoria, MovimentoEstoque, Produto } from "@/lib/tipos";
 import { Botao, CampoDinheiro, CampoEscolha, CampoTexto, Chave, Janela } from "@/components/ui";
 
@@ -65,6 +68,61 @@ export function JanelaProduto({
   const estoqueAgora = produto ? (loja.produtos.find((p) => p.id === produto.id)?.estoque ?? null) : null;
   const controla = produto ? estoqueAgora !== null : estoqueInicial !== "";
 
+  /* Foto. Produto que já existe: grava na hora. Produto novo: espera o produto ser salvo. */
+  const fotoGuardada = produto ? (loja.produtos.find((p) => p.id === produto.id)?.foto ?? null) : null;
+  const [fotoNova, setFotoNova] = useState<File | null>(null);
+  const [previa, setPrevia] = useState<string | null>(null);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [erroFoto, setErroFoto] = useState<string | null>(null);
+  const previaAtual = useRef<string | null>(null);
+
+  function mostrarPrevia(f: File | null) {
+    if (previaAtual.current) URL.revokeObjectURL(previaAtual.current);
+    previaAtual.current = f ? URL.createObjectURL(f) : null;
+    setPrevia(previaAtual.current);
+  }
+  useEffect(() => () => mostrarPrevia(null), []);
+
+  async function escolherFoto(f: File) {
+    const problema = conferirArquivo(f);
+    setErroFoto(problema);
+    if (problema || enviandoFoto) return;
+    mostrarPrevia(f);
+    if (!produto) {
+      setFotoNova(f);
+      return;
+    }
+    setEnviandoFoto(true);
+    const falha = await trocarFotoProduto(produto.id, f);
+    setEnviandoFoto(false);
+    setErroFoto(falha);
+    mostrarPrevia(null);
+  }
+
+  async function tirarFoto() {
+    setErroFoto(null);
+    mostrarPrevia(null);
+    if (!produto) {
+      setFotoNova(null);
+      return;
+    }
+    setEnviandoFoto(true);
+    setErroFoto(await trocarFotoProduto(produto.id, null));
+    setEnviandoFoto(false);
+  }
+
+  // Ctrl+V com a foto copiada (do WhatsApp Web, por exemplo) também vale.
+  const aoColar = useEffectEvent((e: ClipboardEvent) => {
+    const f = [...(e.clipboardData?.files ?? [])].find((a) => a.type.startsWith("image/"));
+    if (!f) return;
+    e.preventDefault();
+    void escolherFoto(f);
+  });
+  useEffect(() => {
+    window.addEventListener("paste", aoColar);
+    return () => window.removeEventListener("paste", aoColar);
+  }, []);
+
   function salvar(fechar: () => void) {
     setTentou(true);
     if (!valido || !preco) return;
@@ -78,8 +136,9 @@ export function JanelaProduto({
       estoqueMinimo: controla ? paraNumero(minimo) : null,
       delivery: noDelivery,
     }).then((id) => {
-      // O estoque inicial espera o produto existir no banco.
+      // O estoque inicial e a foto esperam o produto existir no banco.
       if (id && !produto && inicial !== null) void registrarEstoque(id, "contagem", inicial, "Estoque inicial");
+      if (id && !produto && fotoNova) void trocarFotoProduto(id, fotoNova, true);
     });
     fechar();
   }
@@ -122,6 +181,14 @@ export function JanelaProduto({
           salvar(aoFechar);
         }}
       >
+        <SlotFoto
+          src={previa ?? (fotoGuardada ? urlFoto(fotoGuardada) : null)}
+          ocupado={enviandoFoto}
+          erro={erroFoto}
+          aoEscolher={(f) => void escolherFoto(f)}
+          aoTirar={() => void tirarFoto()}
+        />
+
         <CampoTexto
           rotulo="Nome"
           placeholder="Heineken lata 350ml"
