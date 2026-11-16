@@ -8,6 +8,7 @@ import { tempoDesde } from "@/lib/lugares";
 import { mudarPedido, nomePessoa, salvarDelivery, useLoja } from "@/lib/loja";
 import type { Pedido, SituacaoPedido } from "@/lib/tipos";
 import { Aviso, Botao, Cabecalho, CampoTexto, Cartao, Chave, Janela, useAgora } from "@/components/ui";
+import { MiniFoto } from "@/components/FotoProduto";
 import { tocarAviso } from "./AlertaPedidos";
 
 const formatoHora = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -231,6 +232,10 @@ function CartaoPedido({
   aoRecusar: () => void;
 }) {
   const troco = p.pagamento === "dinheiro" ? trocoALevar(p.total, p.trocoPara) : 0;
+  // A foto ajuda quem separa o pedido a achar a garrafa certa na prateleira.
+  const { produtos } = useLoja();
+  const foto = (id: string) => produtos.find((x) => x.id === id)?.foto ?? null;
+  const temFotos = p.itens.some((i) => foto(i.produtoId));
   return (
     <Cartao className={`entra overflow-hidden ${p.situacao === "novo" ? "ring-accent/60" : ""}`}>
       <div className="p-4">
@@ -283,10 +288,11 @@ function CartaoPedido({
           </a>
         </div>
 
-        <ul className="num mt-3 space-y-0.5 rounded-[14px] bg-sunk px-3 py-2 text-[15px]">
+        <ul className={`num mt-3 rounded-[14px] bg-sunk px-3 py-2 text-[15px] ${temFotos ? "space-y-1.5" : "space-y-0.5"}`}>
           {p.itens.map((i) => (
-            <li key={i.produtoId} className="flex justify-between gap-3">
-              <span className="min-w-0 text-ink">
+            <li key={i.produtoId} className="flex items-center justify-between gap-3">
+              {temFotos && <MiniFoto caminho={foto(i.produtoId)} className="h-9 w-9 rounded-[9px]" />}
+              <span className="min-w-0 flex-1 text-ink">
                 {i.qtd}× {i.nome}
               </span>
               <span className="shrink-0 text-body">{reais(i.preco * i.qtd)}</span>

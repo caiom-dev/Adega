@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
 import type { Categoria, Comanda, Produto, Venda } from "@/lib/tipos";
+import { MiniFoto } from "@/components/FotoProduto";
 
 const TODOS = "todos";
 
@@ -53,7 +54,10 @@ export function GradeProdutos({
       .sort((a, b) => (ranking.get(b.id) ?? 0) - (ranking.get(a.id) ?? 0) || a.nome.localeCompare(b.nome, "pt-BR"));
   }, [produtos, categoria, busca, ranking]);
 
-  const qtdNaComanda = (id: string) => comanda?.itens.find((i) => i.produtoId === id)?.qtd ?? 0;
+  // Enquanto nenhum produto tiver foto, a grade fica só com nome e preço, sem quadrados vazios.
+  const temFotos = useMemo(() => produtos.some((p) => p.ativo && p.foto), [produtos]);
+
+  const qtdNaComanda =(id: string) => comanda?.itens.find((i) => i.produtoId === id)?.qtd ?? 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -103,7 +107,10 @@ export function GradeProdutos({
                     qtd > 0 ? "bg-sunk ring-accent/45" : "bg-surface ring-line hover:bg-sunk"
                   }`}
                 >
-                  <span className="line-clamp-2 pr-7 text-[15px] leading-snug font-medium text-ink">{p.nome}</span>
+                  <span className="flex flex-col gap-2">
+                    {temFotos && <MiniFoto caminho={p.foto} className="h-14 w-14 rounded-[12px]" />}
+                    <span className={`line-clamp-2 text-[15px] leading-snug font-medium text-ink ${temFotos ? "" : "pr-7"}`}>{p.nome}</span>
+                  </span>
                   <span className="num mt-3 flex items-baseline justify-between gap-2 text-sm">
                     <span className="text-body">{reais(p.preco)}</span>
                     {p.estoque !== null && (

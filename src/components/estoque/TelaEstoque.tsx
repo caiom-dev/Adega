@@ -7,6 +7,7 @@ import { situacaoEstoque, type SituacaoEstoque } from "@/lib/calculos";
 import { nomePessoa, perdasDesde, useLoja, type Perda } from "@/lib/loja";
 import type { Produto } from "@/lib/tipos";
 import { Botao, Cartao } from "@/components/ui";
+import { MiniFoto } from "@/components/FotoProduto";
 import { JanelaContagem, JanelaEntrada, JanelaPerda } from "./Janelas";
 
 export type FiltroEstoque = "controlados" | "acabando" | "zerados" | "sem-controle";
@@ -53,6 +54,7 @@ export function TelaEstoque({ filtroInicial, aoAbrirProduto }: { filtroInicial: 
   }, [ativos]);
   const nomeCategoria = useMemo(() => new Map(loja.categorias.map((c) => [c.id, c.nome])), [loja.categorias]);
   const porId = useMemo(() => new Map(loja.produtos.map((p) => [p.id, p])), [loja.produtos]);
+  const temFotos = useMemo(() => ativos.some((p) => p.foto), [ativos]);
 
   // Perdas do mês: recarrega quando o estoque muda (uma perda nova muda o estoque).
   const assinatura = useMemo(() => ativos.map((p) => p.estoque ?? "").join(","), [ativos]);
@@ -157,6 +159,7 @@ export function TelaEstoque({ filtroInicial, aoAbrirProduto }: { filtroInicial: 
                     onClick={() => aoAbrirProduto(p)}
                     className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-sunk active:bg-sunk md:px-5"
                   >
+                    {temFotos && <MiniFoto caminho={p.foto} />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium text-ink">{p.nome}</span>
                       <span className="num block truncate text-[13px] text-muted">
