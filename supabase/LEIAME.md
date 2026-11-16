@@ -38,6 +38,8 @@ histórico completo fica lá (Database > Migrations).
   função `lembretes`. A chave da chamada é sorteada no próprio banco e fica no cofre (vault). Aplicada em 15/11/2026.
 
 - `migrations/012_contas_criado_por.sql`: quem lançou e quem pagou a conta passam a ser gravados pelo gatilho.
+- `migrations/013_fotos_produtos.sql`: coluna `foto` em produtos, área pública `produtos` (só o dono envia e apaga)
+  e o cardápio do delivery passa a mandar a foto.
   Aplicada em 15/11/2026.
 
 - `functions/lembretes/index.ts`: função (Deno) que avisa o dono das contas 3 dias antes, 1 dia antes, no dia e
@@ -46,4 +48,4 @@ histórico completo fica lá (Database > Migrations).
   (e, com domínio próprio verificado no Resend, `LEMBRETES_REMETENTE`, por exemplo `Adega do Pezão <contas@seudominio>`).
   Publicar: `supabase functions deploy lembretes --no-verify-jwt` (ela confere o acesso sozinha).
 
-`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 012.
+`esquema.sql` foi tirado antes da 004: para recriar o banco, rode ele e depois da 004 à 013.

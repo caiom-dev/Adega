@@ -206,7 +206,7 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
     ativo,
     estoque,
     estoqueMinimo,
-    delivery: false,
+    delivery: false, foto: null,
   });
   assert.equal(estoqueBaixo(p(null, 5)), false);
   assert.equal(estoqueBaixo(p(6, 5)), false);
@@ -218,7 +218,7 @@ test("estoque baixo só vale para produto ativo com estoque controlado", () => {
 
 test("situação do estoque e entrada por embalagem", () => {
   const p = (estoque: number | null, estoqueMinimo: number | null): Produto => ({
-    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo, delivery: false,
+    id: "p", nome: "p", categoriaId: "", preco: 100, custo: null, ativo: true, estoque, estoqueMinimo, delivery: false, foto: null,
   });
   assert.equal(situacaoEstoque(p(null, 3)), "sem-controle");
   assert.equal(situacaoEstoque(p(0, 3)), "zerado");

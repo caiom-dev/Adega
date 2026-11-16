@@ -18,7 +18,7 @@ export interface Cardapio {
   /** null = a adega ainda não definiu de onde sai a entrega: só retirada. */
   entrega: { taxa: Centavos; raioKm: number; lat: number; lng: number; endereco: string } | null;
   categorias: { id: string; nome: string }[];
-  produtos: { id: string; nome: string; preco: Centavos; categoriaId: string | null }[];
+  produtos: { id: string; nome: string; preco: Centavos; categoriaId: string | null; foto?: string | null }[];
 }
 
 export interface DadosPedido {

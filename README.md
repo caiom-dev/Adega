@@ -12,7 +12,8 @@ que também funciona no computador.
   Entrada por caixa ("2 caixas de 12") com atualização do custo, contagem da prateleira por categoria,
   perda (quebrou, venceu, consumo) com o prejuízo do mês, mínimo por produto com a lista "Acabando" no Início
   e histórico de cada mudança com quem fez.
-- **Produtos**: preço, custo e margem calculada na hora.
+- **Produtos**: preço, custo e margem calculada na hora. Foto do produto (escolher, arrastar ou colar com Ctrl+V;
+  o app reduz para ~100 KB antes de enviar), que aparece na lista e no cardápio do delivery. Filtro "sem foto".
 - **Delivery**: cardápio público em `/pedir` (sem login, confirma 18 anos), carrinho, entrega até um raio da adega
   (o cliente digita o CEP e o app confere a distância) com taxa única ou retirada, pagamento na entrega com troco e página para o cliente acompanhar o pedido. Na adega, a tela Delivery
   recebe os pedidos ao vivo com som e notificação, e cada um passa por aceito, saiu e entregue (vira venda e baixa o
