@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CaretRight, MagnifyingGlass, Warning } from "@phosphor-icons/react";
+import { CaretRight, MagnifyingGlass, Printer, Warning } from "@phosphor-icons/react";
 import { nivelMargem, pct, reais } from "@/lib/dinheiro";
 import {
   NOMES_PERIODO,
@@ -24,6 +24,7 @@ import { cancelarVenda, nomePessoa, restaurarVenda, useLoja } from "@/lib/loja";
 import type { Membro, Venda } from "@/lib/tipos";
 import { Botao, Cabecalho, Cartao, Etiqueta, Janela, NumeroAnimado, Segmentado, useAgora } from "@/components/ui";
 import { Barras, ListaBarras } from "@/components/Graficos";
+import { useImpressao } from "@/components/Recibo";
 
 type Aba = "lucro" | "vendas" | "pagamentos" | "equipe" | "historico";
 const ABAS: { id: Aba; nome: string }[] = [
@@ -156,7 +157,7 @@ function Carregando() {
   return (
     <div role="status" aria-live="polite">
       <p className="text-[15px] text-body">Carregando as vendas</p>
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="h-[92px] animate-pulse rounded-[20px] bg-sunk" />
         ))}
@@ -171,9 +172,12 @@ const PASSO_HISTORICO = 100;
 
 function Numero({ rotulo, valor, detalhe, i }: { rotulo: string; valor: string; detalhe?: string; i: number }) {
   return (
-    <Cartao className="entra p-4 md:p-5" style={{ "--i": i } as React.CSSProperties}>
+    <Cartao className="entra min-w-0 p-4 md:p-5" style={{ "--i": i } as React.CSSProperties}>
       <p className="text-[13px] text-body">{rotulo}</p>
-      <p className="num mt-2 text-2xl leading-none font-semibold tracking-tight text-ink">{valor}</p>
+      {/* Valor grande demais para a coluna quebra a linha, em vez de empurrar a tela para o lado */}
+      <p className="num mt-2 text-[20px] leading-tight font-semibold tracking-tight text-ink [overflow-wrap:anywhere] sm:text-2xl sm:leading-none">
+        {valor}
+      </p>
       {detalhe && <p className="num mt-2 text-[13px] text-muted">{detalhe}</p>}
     </Cartao>
   );
@@ -241,7 +245,7 @@ function AbaLucro({ r, nomePeriodo, temTaxa }: { r: Resumo; nomePeriodo: string;
         </p>
       )}
 
-      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Numero i={1} rotulo="Vendas" valor={reais(soYooga ? r.vendas : r.vendasComItens)} />
         <Numero i={2} rotulo="Pedidos" valor={String(r.pedidos)} detalhe={`Ticket médio de ${reais(r.ticketMedio)}`} />
         {!soYooga && (
@@ -313,7 +317,7 @@ function AbaVendas({ vendas, r, faixa }: { vendas: Venda[]; r: Resumo; faixa: [D
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Numero i={0} rotulo="Vendas" valor={reais(r.vendas)} />
         <Numero i={1} rotulo="Pedidos" valor={String(r.pedidos)} />
         <Numero i={2} rotulo="Ticket médio" valor={reais(r.ticketMedio)} />
@@ -342,7 +346,7 @@ function AbaVendas({ vendas, r, faixa }: { vendas: Venda[]; r: Resumo; faixa: [D
       </Cartao>
 
       {!umDia && (
-        <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
           <Cartao className="entra p-5 md:p-6" style={{ "--i": 5 } as React.CSSProperties}>
             <h2 className="text-[17px] font-medium text-ink">Vendas por horário</h2>
             <p className="mt-1 mb-8 text-[13px] text-body">Soma de todos os dias do período. Pico às {horas[pico].rotulo}</p>
@@ -501,6 +505,60 @@ function AbaEquipe({ todas, equipe }: { todas: Venda[]; equipe: Membro[] }) {
 
 /* ───────── Histórico de vendas ───────── */
 
+/** Botões da venda aberta no histórico: imprimir, cancelar (com confirmação) ou desfazer o cancelamento. */
+function RodapeVenda({
+  venda,
+  confirmando,
+  aoConfirmar,
+  aoImprimir,
+}: {
+  venda: Venda;
+  confirmando: boolean;
+  aoConfirmar: (v: boolean) => void;
+  aoImprimir: (v: Venda) => void;
+}) {
+  if (venda.canceladaEm) {
+    return (
+      <Botao className="h-12 w-full" onClick={() => restaurarVenda(venda.id)}>
+        Desfazer cancelamento
+      </Botao>
+    );
+  }
+  if (confirmando) {
+    return (
+      <div className="aparece flex gap-2">
+        <Botao className="h-12 flex-1" onClick={() => aoConfirmar(false)}>
+          Manter
+        </Botao>
+        <Botao
+          variante="perigo"
+          className="h-12 flex-1"
+          onClick={() => {
+            cancelarVenda(venda.id);
+            aoConfirmar(false);
+          }}
+        >
+          Cancelar venda
+        </Botao>
+      </div>
+    );
+  }
+  return (
+    <div className="flex gap-2">
+      {/* Venda do Yooga não tem a lista de produtos: não há comprovante para imprimir. */}
+      {venda.origem !== "yooga" && (
+        <Botao className="h-12 flex-1" onClick={() => aoImprimir(venda)}>
+          <Printer size={18} />
+          Imprimir
+        </Botao>
+      )}
+      <Botao variante="perigo" className="h-12 flex-1" onClick={() => aoConfirmar(true)}>
+        Cancelar venda
+      </Botao>
+    </div>
+  );
+}
+
 function AbaHistorico({ todas, faixa, equipe }: { todas: Venda[]; faixa: [Date, Date] | null; equipe: Membro[] }) {
   const [busca, setBusca] = useState("");
   const [limite, setLimite] = useState(PASSO_HISTORICO);
@@ -513,6 +571,31 @@ function AbaHistorico({ todas, faixa, equipe }: { todas: Venda[]; faixa: [Date, 
   }
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  const impressao = useImpressao();
+
+  function imprimir(v: Venda) {
+    // "Mesa 3 · Seu Zé" volta a ser lugar e cliente.
+    const [lugar, ...cliente] = v.comandaNome.split(" · ");
+    impressao.imprimir({
+      tipo: "venda",
+      numero: v.numero,
+      lugar,
+      cliente: cliente.join(" · "),
+      itens: v.itens,
+      subtotal: v.subtotal,
+      desconto: v.desconto,
+      acrescimo: v.acrescimo,
+      total: v.total,
+      // O banco guarda o dinheiro já sem o troco; no cupom aparece o que o cliente entregou.
+      pagamentos: v.pagamentos.map((p, i) =>
+        p.formaId === "dinheiro" && i === v.pagamentos.findLastIndex((x) => x.formaId === "dinheiro")
+          ? { ...p, valor: p.valor + v.troco }
+          : p,
+      ),
+      troco: v.troco,
+      desde: v.criadaEm,
+    });
+  }
 
   const lista = useMemo(() => {
     if (!faixa) return [];
@@ -609,34 +692,7 @@ function AbaHistorico({ todas, faixa, equipe }: { todas: Venda[]; faixa: [Date, 
         aberta={!!venda}
         aoFechar={() => setAbertaId(null)}
         titulo={venda ? `Venda nº ${venda.numero}` : "Venda"}
-        rodape={
-          venda &&
-          (venda.canceladaEm ? (
-            <Botao className="h-12 w-full" onClick={() => restaurarVenda(venda.id)}>
-              Desfazer cancelamento
-            </Botao>
-          ) : confirmando ? (
-            <div className="aparece flex gap-2">
-              <Botao className="h-12 flex-1" onClick={() => setConfirmando(false)}>
-                Manter
-              </Botao>
-              <Botao
-                variante="perigo"
-                className="h-12 flex-1"
-                onClick={() => {
-                  cancelarVenda(venda.id);
-                  setConfirmando(false);
-                }}
-              >
-                Cancelar venda
-              </Botao>
-            </div>
-          ) : (
-            <Botao variante="perigo" className="h-12 w-full" onClick={() => setConfirmando(true)}>
-              Cancelar venda
-            </Botao>
-          ))
-        }
+        rodape={venda && <RodapeVenda venda={venda} confirmando={confirmando} aoConfirmar={setConfirmando} aoImprimir={imprimir} />}
       >
         {venda && (
           <div className="num text-[15px]">
@@ -710,6 +766,7 @@ function AbaHistorico({ todas, faixa, equipe }: { todas: Venda[]; faixa: [Date, 
           </div>
         )}
       </Janela>
+      {impressao.elemento}
     </>
   );
 }

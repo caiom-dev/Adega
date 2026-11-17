@@ -14,6 +14,7 @@ import { GradeProdutos } from "./GradeProdutos";
 import { PainelComanda } from "./PainelComanda";
 import { JanelaPagamento } from "./JanelaPagamento";
 import { JanelaAbrirCaixa } from "./Turno";
+import { useImpressao } from "@/components/Recibo";
 
 type Ajuste = "desconto" | "acrescimo";
 
@@ -33,6 +34,7 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
   const [cliente, setCliente] = useState("");
   const [confirmarEsvaziar, setConfirmarEsvaziar] = useState(false);
   const [abrindoCaixa, setAbrindoCaixa] = useState(false);
+  const impressao = useImpressao();
 
   if (!lugar) {
     return (
@@ -77,6 +79,19 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
       aoAcrescimo={() => abrirAjuste("acrescimo")}
       aoEsvaziar={() => setConfirmarEsvaziar(true)}
       aoCobrar={() => (loja.caixa ? setCobrando(true) : setAbrindoCaixa(true))}
+      aoImprimir={() =>
+        impressao.imprimir({
+          tipo: "conta",
+          lugar: titulo,
+          cliente: comanda.cliente,
+          itens: comanda.itens,
+          subtotal: sub,
+          desconto: comanda.desconto,
+          acrescimo: comanda.acrescimo,
+          total,
+          desde: comanda.abertaEm,
+        })
+      }
     />
   );
 
@@ -193,6 +208,8 @@ export function TelaVenda({ id, aoVender }: { id: string; aoVender: (v: Venda) =
           <div className="min-h-0 flex-1">{painel}</div>
         </div>
       </Janela>
+
+      {impressao.elemento}
 
       {/* Sem caixa aberto não dá para fechar a venda: abre o caixa aqui mesmo e segue */}
       <JanelaAbrirCaixa aberta={abrindoCaixa} aoFechar={() => setAbrindoCaixa(false)} aoAbrir={() => setCobrando(true)} />

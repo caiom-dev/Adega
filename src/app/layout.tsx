@@ -33,6 +33,9 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
+  // É um caixa: zoom de pinça ou de dois toques desmonta a tela no meio do atendimento.
+  maximumScale: 1,
+  userScalable: false,
   // "cover" deixa o app ocupar a tela toda no PWA; o espaço do notch e da
   // barra de gestos é respeitado com env(safe-area-inset-*) no CSS.
   viewportFit: "cover",

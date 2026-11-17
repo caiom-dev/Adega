@@ -59,6 +59,21 @@ O app usa o projeto Supabase `adega` (São Paulo). O endereço e a chave públic
 - Venda cancelada não é apagada: fica no histórico, riscada, e sai das contas.
 - Vendas importadas do Yooga não têm itens: contam no faturamento, mas ficam fora do lucro.
 
+## Impressora (cupom da conta)
+
+Na comanda, o botão **Imprimir** tira o resumo da conta para mostrar ao cliente. No Histórico, uma venda
+fechada também tem **Imprimir** (comprovante com forma de pagamento e troco). O cupom é para bobina de 80 mm
+(Epson TM-T20X e parecidas) e sai pela impressão normal do navegador. CNPJ e nome ficam em `src/lib/empresa.ts`.
+
+Configuração, uma vez só, no computador do caixa (Windows):
+
+1. Instale o driver da Epson para o modelo da impressora (site da Epson, "TM-T20X", driver APD).
+2. Em **Preferências de impressão** da Epson, deixe o papel em **Roll Paper 80 x 297 mm** e ligue a
+   **redução de papel na margem inferior** (assim a bobina não avança papel em branco depois do cupom).
+3. Na primeira impressão pelo Chrome, escolha a Epson, **Margens: Nenhuma** e **Escala: Padrão**. O Chrome lembra.
+4. Opcional, para imprimir direto sem abrir a janela de impressão: deixe a Epson como impressora padrão
+   do Windows e abra o Chrome do caixa com `--kiosk-printing` no atalho.
+
 ## Esqueci o PIN
 
 - **Dono**: na tela do PIN, toque em "Esqueci meu PIN" e digite o e-mail do dono. O link que chega deixa escolher um PIN novo.

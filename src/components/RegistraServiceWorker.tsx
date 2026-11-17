@@ -11,5 +11,11 @@ export function RegistraServiceWorker() {
       // Sem service worker o app continua funcionando, só não abre offline.
     });
   }, []);
+  // iPhone: o Safari ignora o bloqueio de zoom da meta viewport; o gesto de pinça é barrado aqui.
+  useEffect(() => {
+    const barrar = (e: Event) => e.preventDefault();
+    document.addEventListener("gesturestart", barrar);
+    return () => document.removeEventListener("gesturestart", barrar);
+  }, []);
   return null;
 }

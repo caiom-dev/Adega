@@ -50,12 +50,12 @@ function Bloco({
   i: number;
 }) {
   return (
-    <Cartao className="entra p-4 md:p-5" style={{ "--i": i } as React.CSSProperties}>
+    <Cartao className="entra min-w-0 p-4 md:p-5" style={{ "--i": i } as React.CSSProperties}>
       <p className="text-[13px] text-body">{rotulo}</p>
       {valor === null ? (
-        <p className="num mt-2 block text-[28px] leading-none font-semibold tracking-tight text-muted">–</p>
+        <p className="num mt-2 block text-[24px] leading-none font-semibold tracking-tight text-muted sm:text-[28px]">–</p>
       ) : (
-        <NumeroAnimado valor={valor} formato={formato} className="num mt-2 block text-[28px] leading-none font-semibold tracking-tight text-ink" />
+        <NumeroAnimado valor={valor} formato={formato} className="num mt-2 block text-[24px] leading-none font-semibold tracking-tight text-ink [overflow-wrap:anywhere] sm:text-[28px]" />
       )}
       <p className="num mt-2 min-h-5 text-[13px] text-muted">{detalhe}</p>
     </Cartao>
@@ -122,7 +122,7 @@ export default function InicioPage() {
 
       {dados && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Bloco
               i={0}
               rotulo="Vendas"
@@ -218,7 +218,7 @@ export default function InicioPage() {
             </Cartao>
           )}
 
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
             <Cartao className="entra p-5 md:p-6" style={{ "--i": 5 } as React.CSSProperties}>
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="text-[17px] font-medium text-ink">Vendas dos últimos 7 dias</h2>

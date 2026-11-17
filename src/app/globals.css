@@ -50,6 +50,9 @@ html {
   background: var(--color-canvas);
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
+  /* Sem zoom de pinça nem de dois toques (o Safari ignora o user-scalable da meta viewport). */
+  touch-action: pan-x pan-y;
+  overscroll-behavior: none;
 }
 
 body {
@@ -59,6 +62,9 @@ body {
   line-height: 1.45;
   /* PWA: sem "puxar para atualizar" e sem o elástico que mexe a tela inteira. */
   overscroll-behavior: none;
+  /* A página nunca escorrega para o lado. "clip" e não "hidden": não cria rolagem própria,
+   * então o que é "sticky" continua preso no topo. */
+  overflow-x: clip;
 }
 
 /* Botões não selecionam texto nem abrem menu de toque longo no celular. */
@@ -323,4 +329,107 @@ a {
     opacity: 0;
     transform: translateY(8px) scale(0.98);
   }
+}
+
+/* ───────────── Cupom da impressora térmica (Recibo.tsx) ─────────────
+ * Bobina de 80 mm com 72 mm de área de impressão. Preto puro e letra forte:
+ * a térmica imprime cinza como pontinhos claros.
+ */
+/* Na tela, o cupom fica montado fora da vista (e não com display: none) para dar para medir a
+ * altura dele e pedir uma página do tamanho exato: a bobina não sai com papel em branco no fim. */
+#impressao {
+  position: fixed;
+  top: 0;
+  left: -200mm;
+  width: 80mm;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+  body > :not(#impressao) {
+    display: none !important;
+  }
+  #impressao {
+    position: static;
+    visibility: visible;
+  }
+}
+
+.recibo {
+  width: 72mm;
+  margin: 0 auto;
+  padding: 2mm 0 4mm;
+  color: #000;
+  background: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: uppercase;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.recibo p {
+  margin: 0 0 1mm;
+}
+.recibo hr {
+  margin: 2mm 0;
+  border: 0;
+  border-top: 1px dashed #000;
+}
+.recibo-centro {
+  text-align: center;
+}
+.recibo-forte {
+  font-weight: 800;
+}
+.recibo-grande {
+  font-size: 14px;
+}
+.recibo table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.recibo th {
+  font-weight: 800;
+  text-align: left;
+  padding-bottom: 1mm;
+}
+.recibo td {
+  vertical-align: top;
+  padding: 0.6mm 0;
+}
+.recibo .recibo-qtd {
+  width: 9mm;
+}
+.recibo .recibo-valor {
+  width: 16mm;
+  text-align: right;
+  white-space: nowrap;
+}
+.recibo-unitario {
+  display: block;
+  font-size: 11px;
+}
+.recibo dl {
+  margin: 0;
+}
+.recibo dl > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2mm;
+  margin-bottom: 0.6mm;
+}
+.recibo dd {
+  margin: 0;
+  min-width: 22mm;
+  text-align: right;
+  white-space: nowrap;
 }

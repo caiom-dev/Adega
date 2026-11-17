@@ -31,7 +31,7 @@ function EtiquetaMargem({ p }: { p: Produto }) {
 }
 
 const ESCOLHA =
-  "h-11 rounded-[14px] bg-sunk px-3 text-base text-ink ring-1 ring-line outline-none focus:ring-2 focus:ring-accent md:text-sm";
+  "h-11 w-full min-w-0 rounded-[14px] bg-sunk px-3 text-base text-ink ring-1 ring-line outline-none focus:ring-2 focus:ring-accent md:text-sm";
 
 export default function ProdutosPage() {
   // useSearchParams precisa de Suspense em volta.
@@ -104,8 +104,8 @@ function Produtos() {
         <TelaEstoque filtroInicial={filtroEstoque} aoAbrirProduto={setEditando} />
       ) : (
         <>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <label className="flex h-11 shrink-0 items-center gap-2 sm:flex-1 rounded-[14px] bg-sunk px-3 ring-1 ring-line transition-shadow duration-150 focus-within:ring-2 focus-within:ring-accent">
+        <div className="flex flex-col gap-2 lg:flex-row">
+          <label className="flex h-11 shrink-0 items-center gap-2 lg:flex-1 rounded-[14px] bg-sunk px-3 ring-1 ring-line transition-shadow duration-150 focus-within:ring-2 focus-within:ring-accent">
             <MagnifyingGlass size={18} className="text-muted" />
             <input
               type="search"
@@ -116,7 +116,7 @@ function Produtos() {
               className="h-full w-full bg-transparent text-base text-ink outline-none placeholder:text-muted md:text-sm"
             />
           </label>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
+          <div className="grid grid-cols-2 gap-2 lg:flex">
             <select value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoria" className={ESCOLHA}>
               <option value="todas">Todas as categorias</option>
               {loja.categorias.map((c) => (
@@ -167,8 +167,9 @@ function Produtos() {
         ) : (
           <>
             {/* Computador: tabela */}
-            <Cartao className="mt-6 hidden overflow-hidden md:block">
-              <table className="w-full text-[15px]">
+            {/* Tabela só com espaço para todas as colunas; se ainda faltar, rola dentro do cartão */}
+            <Cartao className="mt-6 hidden overflow-x-auto xl:block">
+              <table className="w-full min-w-[720px] text-[15px]">
                 <thead className="border-b border-line text-left text-[13px] text-muted">
                   <tr>
                     <th className="px-5 py-3 font-normal">Produto</th>
@@ -212,7 +213,7 @@ function Produtos() {
             </Cartao>
 
             {/* Celular: lista agrupada, como nos Ajustes do iOS */}
-            <Cartao className="mt-4 overflow-hidden md:hidden">
+            <Cartao className="mt-4 overflow-hidden xl:hidden">
               <ul className="divide-y divide-line">
                 {lista.map((p) => (
                   <li key={p.id}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, Trash } from "@phosphor-icons/react";
+import { Minus, Plus, Printer, Trash } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
 import { subtotal, totalComanda } from "@/lib/calculos";
 import { useMemo } from "react";
@@ -15,12 +15,15 @@ export function PainelComanda({
   aoAcrescimo,
   aoEsvaziar,
   aoCobrar,
+  aoImprimir,
 }: {
   comanda: Comanda;
   aoDesconto: () => void;
   aoAcrescimo: () => void;
   aoEsvaziar: () => void;
   aoCobrar: () => void;
+  /** Imprime o resumo da conta para mostrar ao cliente. */
+  aoImprimir: () => void;
 }) {
   const { produtos } = useLoja();
   // O item da comanda guarda só nome e preço; a foto vem do cadastro do produto.
@@ -109,9 +112,15 @@ export function PainelComanda({
             Esvaziar
           </Botao>
         </div>
-        <Botao variante="principal" className="mt-2 h-[52px] w-full text-[17px]" onClick={aoCobrar} disabled={vazio}>
-          Cobrar {reais(total)}
-        </Botao>
+        <div className="mt-2 flex gap-2">
+          <Botao className="h-[52px] shrink-0 px-4" onClick={aoImprimir} disabled={vazio} aria-label="Imprimir a conta">
+            <Printer size={20} />
+            Imprimir
+          </Botao>
+          <Botao variante="principal" className="h-[52px] min-w-0 flex-1 text-[17px]" onClick={aoCobrar} disabled={vazio}>
+            Cobrar {reais(total)}
+          </Botao>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // O "N" de desenvolvimento ficava em cima do botão Início no celular. Erros continuam aparecendo.
+  devIndicators: false,
   partialPrefetching: true,
   turbopack: {
     rules: {

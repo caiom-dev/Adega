@@ -184,6 +184,19 @@ export function Segmentado<T extends string>({
 
 const SAIDA_MS = 240;
 
+/*
+ * Trava da rolagem da página enquanto há janela aberta. Contada, e não guardada por janela:
+ * com duas janelas abertas ao mesmo tempo (a comanda e a cobrança por cima), cada uma guardava
+ * o estado da outra e a última a fechar devolvia a página travada, sem rolar até recarregar.
+ */
+let janelasAbertas = 0;
+function travarRolagem() {
+  if (janelasAbertas++ === 0) document.body.style.overflow = "hidden";
+  return () => {
+    if (--janelasAbertas === 0) document.body.style.overflow = "";
+  };
+}
+
 export function Janela({
   aberta,
   aoFechar,
@@ -232,11 +245,10 @@ export function Janela({
     if (!montada) return;
     const tecla = (e: KeyboardEvent) => e.key === "Escape" && fechar();
     document.addEventListener("keydown", tecla);
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const destravar = travarRolagem();
     return () => {
       document.removeEventListener("keydown", tecla);
-      document.body.style.overflow = overflow;
+      destravar();
     };
   }, [montada, fechar]);
 
