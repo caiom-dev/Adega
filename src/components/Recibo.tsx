@@ -12,9 +12,28 @@ import type { ItemPedido, Pagamento } from "@/lib/tipos";
  * CSS de impressão (globals.css) esconde todo o resto da página.
  */
 
+/** O que só o pedido de delivery tem: para quem vai, como paga e quando saiu. */
+export interface EntregaRecibo {
+  telefone: string;
+  /** true = o cliente busca na loja. */
+  retirada: boolean;
+  endereco: string;
+  complemento: string;
+  /** "Bairro · CEP 00000-000", pronto para imprimir. */
+  regiao: string;
+  /** Como o cliente vai pagar na entrega ("Dinheiro", "Pix"...). */
+  pagamento: string;
+  /** Só em dinheiro: com quanto o cliente vai pagar, e o troco que o entregador leva. */
+  trocoPara: number | null;
+  trocoLevar: number;
+  observacao: string;
+  /** Quando o pedido saiu para entrega, se já saiu. */
+  saiuEm: string | null;
+}
+
 export interface DadosRecibo {
-  /** "Resumo da conta" (comanda aberta) ou "Comprovante de venda" (venda fechada). */
-  tipo: "conta" | "venda";
+  /** "Resumo da conta" (comanda aberta), "Comprovante de venda" (venda fechada) ou pedido de delivery. */
+  tipo: "conta" | "venda" | "delivery";
   /** "Mesa 3", "Balcão 1"... */
   lugar: string;
   cliente: string;
@@ -27,8 +46,11 @@ export interface DadosRecibo {
   numero?: number;
   pagamentos?: Pick<Pagamento, "formaNome" | "valor">[];
   troco?: number;
-  /** Quando a conta abriu, ou quando a venda foi feita. */
+  /** Quando a conta abriu, a venda foi feita ou o pedido chegou. */
   desde?: string;
+  /** Taxa de entrega do delivery (fora do subtotal, dentro do total). */
+  taxaEntrega?: number;
+  entrega?: EntregaRecibo;
 }
 
 const formatoDataHora = new Intl.DateTimeFormat("pt-BR", {
@@ -44,20 +66,47 @@ const formatoHora = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: 
 /** "17/11/2026 - 16:14:14", como no cupom antigo. */
 const dataHora = (d: Date) => formatoDataHora.format(d).replace(", ", " - ");
 
+const TITULO = { conta: "Resumo da conta", venda: "Comprovante de venda", delivery: "Pedido delivery" };
+
 function Recibo({ dados, impressoEm }: { dados: DadosRecibo; impressoEm: Date }) {
   const venda = dados.tipo === "venda";
+  const e = dados.entrega;
+  const titulo = e?.retirada ? "Pedido para retirar" : TITULO[dados.tipo];
   return (
     <div className="recibo">
       <p className="recibo-centro recibo-forte recibo-grande">{EMPRESA.nome}</p>
       <p className="recibo-centro">CNPJ: {EMPRESA.cnpj}</p>
-      <p className="recibo-centro recibo-forte">{venda ? `Comprovante de venda nº ${dados.numero}` : "Resumo da conta"}</p>
+      <p className={`recibo-centro recibo-forte ${e ? "recibo-grande" : ""}`}>
+        {titulo}
+        {dados.numero !== undefined && ` nº ${dados.numero}`}
+      </p>
 
       <hr />
-      <p className="recibo-centro recibo-forte">
-        {dados.lugar}
-        {dados.desde && ` · ${venda ? "" : "aberta às "}${venda ? dataHora(new Date(dados.desde)) : formatoHora.format(new Date(dados.desde))}`}
-      </p>
-      <p className="recibo-centro recibo-forte">Cliente: {dados.cliente || "Consumidor não identificado"}</p>
+      {e ? (
+        <>
+          <p className="recibo-forte">Cliente: {dados.cliente}</p>
+          <p>Tel: {e.telefone}</p>
+          {e.retirada ? (
+            <p className="recibo-forte">Retirada na loja</p>
+          ) : (
+            <>
+              <p className="recibo-forte">
+                Entrega: {e.endereco}
+                {e.complemento && ` · ${e.complemento}`}
+              </p>
+              {e.regiao && <p>{e.regiao}</p>}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="recibo-centro recibo-forte">
+            {dados.lugar}
+            {dados.desde && ` · ${venda ? "" : "aberta às "}${venda ? dataHora(new Date(dados.desde)) : formatoHora.format(new Date(dados.desde))}`}
+          </p>
+          <p className="recibo-centro recibo-forte">Cliente: {dados.cliente || "Consumidor não identificado"}</p>
+        </>
+      )}
 
       <hr />
       <table>
@@ -100,6 +149,12 @@ function Recibo({ dados, impressoEm }: { dados: DadosRecibo; impressoEm: Date })
             <dd>+ {reais(dados.acrescimo)}</dd>
           </div>
         )}
+        {!!dados.taxaEntrega && (
+          <div>
+            <dt>Taxa de entrega:</dt>
+            <dd>+ {reais(dados.taxaEntrega)}</dd>
+          </div>
+        )}
         <div className="recibo-forte recibo-grande">
           <dt>{venda ? "Total:" : "Valor a pagar:"}</dt>
           <dd>{reais(dados.total)}</dd>
@@ -117,6 +172,37 @@ function Recibo({ dados, impressoEm }: { dados: DadosRecibo; impressoEm: Date })
           </div>
         )}
       </dl>
+
+      {e && (
+        <>
+          <hr />
+          <p className="recibo-forte">
+            Pagamento: {e.pagamento}
+            {!e.retirada && " na entrega"}
+          </p>
+          {e.trocoPara !== null && (
+            <dl>
+              <div>
+                <dt>Troco para:</dt>
+                <dd>{reais(e.trocoPara)}</dd>
+              </div>
+              <div className="recibo-forte">
+                <dt>Levar de troco:</dt>
+                <dd>{reais(e.trocoLevar)}</dd>
+              </div>
+            </dl>
+          )}
+          {e.observacao && (
+            <>
+              <hr />
+              <p className="recibo-forte">Obs: {e.observacao}</p>
+            </>
+          )}
+          <hr />
+          <p>Pedido às {formatoHora.format(new Date(dados.desde ?? impressoEm))}</p>
+          {e.saiuEm && <p>Saiu para entrega às {formatoHora.format(new Date(e.saiuEm))}</p>}
+        </>
+      )}
 
       <hr />
       <p className="recibo-centro recibo-forte">* Documento sem valor fiscal *</p>

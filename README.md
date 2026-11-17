@@ -62,7 +62,9 @@ O app usa o projeto Supabase `adega` (São Paulo). O endereço e a chave públic
 ## Impressora (cupom da conta)
 
 Na comanda, o botão **Imprimir** tira o resumo da conta para mostrar ao cliente. No Histórico, uma venda
-fechada também tem **Imprimir** (comprovante com forma de pagamento e troco). O cupom é para bobina de 80 mm
+fechada também tem **Imprimir** (comprovante com forma de pagamento e troco). No Delivery, cada pedido tem
+**Imprimir**: número do pedido, cliente, telefone, endereço, itens, taxa de entrega, pagamento com o troco
+que o entregador leva, observação e horários. O cupom é para bobina de 80 mm
 (Epson TM-T20X e parecidas) e sai pela impressão normal do navegador. CNPJ e nome ficam em `src/lib/empresa.ts`.
 
 Configuração, uma vez só, no computador do caixa (Windows):

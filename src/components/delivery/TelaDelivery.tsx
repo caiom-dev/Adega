@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BellRinging, Copy, Phone, WhatsappLogo } from "@phosphor-icons/react";
+import { BellRinging, Copy, Phone, Printer, WhatsappLogo } from "@phosphor-icons/react";
 import { reais } from "@/lib/dinheiro";
 import { NOME_PAGAMENTO, formatarCep, formatarTelefone, linkMapa, linkWhatsApp, textoDistancia, trocoALevar } from "@/lib/delivery";
 import { tempoDesde } from "@/lib/lugares";
@@ -10,6 +10,37 @@ import type { Pedido, SituacaoPedido } from "@/lib/tipos";
 import { Aviso, Botao, Cabecalho, CampoTexto, Cartao, Chave, Janela, useAgora } from "@/components/ui";
 import { MiniFoto } from "@/components/FotoProduto";
 import { tocarAviso } from "./AlertaPedidos";
+import { useImpressao, type DadosRecibo } from "@/components/Recibo";
+
+/** O pedido no formato do cupom da impressora térmica. */
+function paraRecibo(p: Pedido): DadosRecibo {
+  return {
+    tipo: "delivery",
+    numero: p.numero,
+    lugar: "Delivery",
+    cliente: p.cliente,
+    itens: p.itens,
+    subtotal: p.subtotal,
+    desconto: 0,
+    acrescimo: 0,
+    taxaEntrega: p.taxa,
+    total: p.total,
+    desde: p.criadoEm,
+    entrega: {
+      telefone: formatarTelefone(p.telefone),
+      retirada: p.retirada,
+      endereco: p.endereco,
+      complemento: p.complemento,
+      regiao: [p.bairro, p.cep && `CEP ${formatarCep(p.cep)}`].filter(Boolean).join(" · "),
+      pagamento: NOME_PAGAMENTO[p.pagamento],
+      trocoPara: p.pagamento === "dinheiro" ? p.trocoPara : null,
+      trocoLevar: p.pagamento === "dinheiro" ? trocoALevar(p.total, p.trocoPara) : 0,
+      observacao: p.observacao,
+      // Enquanto está na rua, a última mudança do pedido foi a saída.
+      saiuEm: p.situacao === "saiu" ? p.atualizadoEm : null,
+    },
+  };
+}
 
 const formatoHora = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
@@ -31,6 +62,7 @@ export function TelaDelivery() {
   const [recusando, setRecusando] = useState<Pedido | null>(null);
   const [entregando, setEntregando] = useState<Pedido | null>(null);
   const [aviso, setAviso] = useState<{ texto: string; erro?: boolean } | null>(null);
+  const impressao = useImpressao();
   const [ocupado, setOcupado] = useState<string | null>(null);
   // Lida depois de montar: no servidor não existe Notification.
   const [permissao, setPermissao] = useState<string>("indisponivel");
@@ -151,6 +183,7 @@ export function TelaDelivery() {
                         aoSair={() => void mudar(p, "saiu")}
                         aoEntregar={() => setEntregando(p)}
                         aoRecusar={() => setRecusando(p)}
+                        aoImprimir={() => impressao.imprimir(paraRecibo(p))}
                       />
                     </li>
                   ))}
@@ -203,6 +236,7 @@ export function TelaDelivery() {
         />
       )}
 
+      {impressao.elemento}
       {aviso && (
         <Aviso>
           <p className={`font-medium ${aviso.erro ? "text-red-ink" : "text-ink"}`}>{aviso.texto}</p>
@@ -222,6 +256,7 @@ function CartaoPedido({
   aoSair,
   aoEntregar,
   aoRecusar,
+  aoImprimir,
 }: {
   pedido: Pedido;
   agora: Date | null;
@@ -230,6 +265,8 @@ function CartaoPedido({
   aoSair: () => void;
   aoEntregar: () => void;
   aoRecusar: () => void;
+  /** Imprime o pedido no cupom, para separar e mandar junto com a entrega. */
+  aoImprimir: () => void;
 }) {
   const troco = p.pagamento === "dinheiro" ? trocoALevar(p.total, p.trocoPara) : 0;
   // A foto ajuda quem separa o pedido a achar a garrafa certa na prateleira.
@@ -315,6 +352,10 @@ function CartaoPedido({
       <div className="flex gap-2 border-t border-line p-3">
         <Botao variante="fantasma" className="h-11 px-3 text-red-ink hover:text-red-ink" disabled={ocupado} onClick={aoRecusar}>
           Recusar
+        </Botao>
+        <Botao className="h-11 px-3" onClick={aoImprimir} aria-label={`Imprimir o pedido ${p.numero}`}>
+          <Printer size={18} />
+          Imprimir
         </Botao>
         {p.situacao === "novo" && (
           <Botao variante="principal" className="h-11 flex-1" disabled={ocupado} onClick={aoAceitar}>
