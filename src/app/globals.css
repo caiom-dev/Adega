@@ -367,13 +367,21 @@ a {
   #impressao {
     position: static;
     visibility: visible;
+    /* A largura é a área que a impressora diz que imprime (72 mm na bobina de 80), não a da bobina. */
+    width: auto;
   }
 }
 
+/* No máximo 70 mm, encostado à esquerda. A Epson só imprime 72 mm dos 80 da bobina e já desconta
+ * a borda que a cabeça térmica não alcança: centralizar numa caixa de 80 mm empurrava o fim das
+ * linhas para fora do papel. Os 2 mm de folga cobrem driver que informa a área um pouco menor. */
 .recibo {
-  width: 72mm;
-  margin: 0 auto;
-  padding: 2mm 0 4mm;
+  width: 100%;
+  max-width: 70mm;
+  margin: 0;
+  padding: 2mm 1mm 4mm;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
   color: #000;
   background: #fff;
   font-family: Arial, Helvetica, sans-serif;
