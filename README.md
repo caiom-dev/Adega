@@ -72,7 +72,8 @@ Configuração, uma vez só, no computador do caixa (Windows):
 1. Instale o driver da Epson para o modelo da impressora (site da Epson, "TM-T20X", driver APD).
 2. Em **Preferências de impressão** da Epson, deixe o papel em **Roll Paper 80 x 297 mm** e ligue a
    **redução de papel na margem inferior** (assim a bobina não avança papel em branco depois do cupom).
-3. Na primeira impressão pelo Chrome, escolha a Epson, **Margens: Nenhuma** e **Escala: Padrão**. O Chrome lembra.
+   O app não escolhe o tamanho do papel: a Epson ignora e usa o do driver.
+3. Na primeira impressão pelo Chrome, escolha a Epson. Margens e escala podem ficar no padrão. O Chrome lembra.
 4. Opcional, para imprimir direto sem abrir a janela de impressão: deixe a Epson como impressora padrão
    do Windows e abra o Chrome do caixa com `--kiosk-printing` no atalho.
 

@@ -335,8 +335,7 @@ a {
  * Bobina de 80 mm com 72 mm de área de impressão. Preto puro e letra forte:
  * a térmica imprime cinza como pontinhos claros.
  */
-/* Na tela, o cupom fica montado fora da vista (e não com display: none) para dar para medir a
- * altura dele e pedir uma página do tamanho exato: a bobina não sai com papel em branco no fim. */
+/* Na tela, o cupom fica montado fora da vista, pronto para a impressão. */
 #impressao {
   position: fixed;
   top: 0;
@@ -347,6 +346,15 @@ a {
 }
 
 @media print {
+  /* Sem margem: o cupom usa a largura toda da bobina e começa no topo do papel. */
+  @page {
+    margin: 0;
+  }
+  /* Tema claro no papel: com o tema escuro do app, o Chrome pinta de preto a sobra do papel
+   * e a térmica imprime blocos cinza em volta do cupom. */
+  :root {
+    color-scheme: light !important;
+  }
   html,
   body {
     background: #fff !important;

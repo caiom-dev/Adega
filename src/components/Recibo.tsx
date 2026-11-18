@@ -222,13 +222,11 @@ export function useImpressao() {
 
   useEffect(() => {
     if (!pedido) return;
-    const el = document.getElementById("impressao");
-    if (!el) return;
-    // A página de impressão tem o tamanho exato do cupom: a bobina não sai com papel em branco no fim.
-    const alturaMm = Math.ceil((el.scrollHeight * 25.4) / 96) + 4;
-    const estilo = document.createElement("style");
-    estilo.textContent = `@page { size: 80mm ${alturaMm}mm; margin: 0; }`;
-    document.head.appendChild(estilo);
+    /*
+     * O tamanho do papel fica com a impressora. Pedir uma página do tamanho do cupom não adianta:
+     * a Epson usa o papel do driver (80 x 297 mm) e o Chrome centraliza o cupom nele, com sobra
+     * em cima e embaixo. Para não sobrar papel no fim, liga-se a redução de papel no driver.
+     */
     const terminar = () => setPedido(null);
     window.addEventListener("afterprint", terminar, { once: true });
     // Um quadro de folga para o navegador desenhar o cupom antes de abrir a impressão.
@@ -236,7 +234,6 @@ export function useImpressao() {
     return () => {
       cancelAnimationFrame(quadro);
       window.removeEventListener("afterprint", terminar);
-      estilo.remove();
     };
   }, [pedido]);
 
