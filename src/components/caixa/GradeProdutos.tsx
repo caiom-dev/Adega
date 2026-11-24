@@ -108,7 +108,7 @@ export function GradeProdutos({
                   }`}
                 >
                   <span className="flex flex-col gap-2">
-                    {temFotos && <MiniFoto caminho={p.foto} className="h-14 w-14 rounded-[12px]" />}
+                    {temFotos && <MiniFoto caminho={p.foto} className="h-[76px] w-[76px] rounded-[14px]" />}
                     <span className={`line-clamp-2 text-[15px] leading-snug font-medium text-ink ${temFotos ? "" : "pr-7"}`}>{p.nome}</span>
                   </span>
                   <span className="num mt-3 flex items-baseline justify-between gap-2 text-sm">

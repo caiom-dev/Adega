@@ -6,7 +6,7 @@ import { ehImagem, TAMANHO_MAXIMO, urlFoto } from "@/lib/fotoProduto";
 import { Botao } from "@/components/ui";
 
 /** Miniatura quadrada. Sem foto, um quadrado vazio do mesmo tamanho, para a lista não ficar torta. */
-export function MiniFoto({ caminho, className = "h-10 w-10 rounded-[10px]" }: { caminho: string | null; className?: string }) {
+export function MiniFoto({ caminho, className = "h-[52px] w-[52px] rounded-[12px]" }: { caminho: string | null; className?: string }) {
   return (
     <span className={`flex shrink-0 items-center justify-center overflow-hidden bg-sunk ring-1 ring-line ${className}`}>
       {caminho ? (

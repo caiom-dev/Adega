@@ -328,7 +328,7 @@ function CartaoPedido({
         <ul className={`num mt-3 rounded-[14px] bg-sunk px-3 py-2 text-[15px] ${temFotos ? "space-y-1.5" : "space-y-0.5"}`}>
           {p.itens.map((i) => (
             <li key={i.produtoId} className="flex items-center justify-between gap-3">
-              {temFotos && <MiniFoto caminho={foto(i.produtoId)} className="h-9 w-9 rounded-[9px]" />}
+              {temFotos && <MiniFoto caminho={foto(i.produtoId)} className="h-11 w-11 rounded-[10px]" />}
               <span className="min-w-0 flex-1 text-ink">
                 {i.qtd}× {i.nome}
               </span>
